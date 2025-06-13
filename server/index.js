@@ -386,11 +386,9 @@ io.on('connection', (socket) => {
                 playerRole,
                 debt
             });
-        });
-
-        // handle score updates when coins are pocketed
+        });        // handle score updates when coins are pocketed
         socket.on('updateScore', (data) => {
-            const { roomName, playerRole, coinColor } = data;
+            const { roomName, playerRole, coinColor, increment } = data;
             if (!rooms.has(roomName)) return;
 
             const room = rooms.get(roomName);
@@ -398,15 +396,16 @@ io.on('connection', (socket) => {
                 room.scores = { creator: 0, joiner: 0 };
             }
 
-            // Increment score for the player whose color matches the pocketed coin
-            room.scores[playerRole] = (room.scores[playerRole] || 0) + 1;
+            // Use increment value if provided, otherwise default to +1
+            const scoreChange = increment !== undefined ? increment : 1;
+            room.scores[playerRole] = (room.scores[playerRole] || 0) + scoreChange;
             
             // Emit score update to all players in the room
             io.to(roomName).emit('scoreUpdate', {
                 roomName: roomName,
                 scores: room.scores
             });
-        });        socket.on('updateDebt', ({ roomName, playerRole, debt }) => {
+        });socket.on('updateDebt', ({ roomName, playerRole, debt }) => {
             if (!rooms.has(roomName)) return;
 
             const room = rooms.get(roomName);
@@ -534,7 +533,23 @@ io.on('connection', (socket) => {
                 socket.emit('error', 'Cannot pay debt: insufficient score or no debt to pay');
             }
         });
-});
+
+        // Handle queen reset event - when queen needs to be returned to center
+        socket.on('queenReset', ({ roomName, playerRole }) => {
+            if (!rooms.has(roomName)) {
+                socket.emit('error', 'Room does not exist');
+                return;
+            }
+
+            console.log(`Queen reset by ${playerRole} in room ${roomName}`);
+
+            // Broadcast queen reset to all players in the room
+            io.to(roomName).emit('queenReset', {
+                roomName,
+                playerRole
+            });
+        });
+    });
 
 // start server
 httpServer.listen(PORT, () => {

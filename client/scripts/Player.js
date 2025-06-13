@@ -1,5 +1,5 @@
 class Player {
-    constructor({ clientId, name, role, room, score = 0, debt = 0, isTurn = false }) {
+    constructor({ clientId, name, role, room, score = 0, debt = 0, isTurn = false, isCoverTurn = false }) {
         this.clientId = clientId;
         this.name = name;
         this.role = role;
@@ -8,6 +8,7 @@ class Player {
         this.score = score;
         this.debt = debt;
         this.isTurn = isTurn;
+        this.isCoverTurn = isCoverTurn;
     }
 }
 

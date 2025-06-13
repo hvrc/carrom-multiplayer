@@ -1,21 +1,21 @@
 class GameManager {
     constructor(roomName, roomData = {}) {
         this.roomName = roomName;
-        this.whoseTurn = roomData.whoseTurn || 'creator';
-        this.playerData = [
-            {
+        this.whoseTurn = roomData.whoseTurn || 'creator';        this.playerData = [            {
                 role: 'creator',
                 color: 'white',
                 score: roomData.creator?.score || 0,
                 debt: roomData.creator?.debt || 0,
-                isTurn: this.whoseTurn === 'creator'
+                isTurn: this.whoseTurn === 'creator',
+                isCoverTurn: false
             },
             {
                 role: 'joiner',
                 color: 'black',
                 score: roomData.joiner?.score || 0,
                 debt: roomData.joiner?.debt || 0,
-                isTurn: this.whoseTurn === 'joiner'
+                isTurn: this.whoseTurn === 'joiner',
+                isCoverTurn: false
             }
         ];
     }

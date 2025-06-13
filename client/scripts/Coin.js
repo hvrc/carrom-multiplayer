@@ -32,6 +32,9 @@ export default class Coin {
         if (this.color === 'black') {
             ctx.fillStyle = 'black';
             ctx.fill();
+        } else if (this.color === 'red') {
+            ctx.fillStyle = 'red';
+            ctx.fill();
         }
         ctx.stroke();
         ctx.restore();

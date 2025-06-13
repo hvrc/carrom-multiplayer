@@ -23,8 +23,7 @@ function GameInfoTable({ roomName, creator, joiner, gameManager }) {
     return (
         <div>
             <div>Room Name: {roomName}</div> <br/>
-            <table border="1" cellPadding="6" style={{borderCollapse: 'collapse', minWidth: 400}}>
-                <thead>
+            <table border="1" cellPadding="6" style={{borderCollapse: 'collapse', minWidth: 400}}>                <thead>
                     <tr>
                         <th>Player</th>
                         <th>Role</th>
@@ -32,24 +31,25 @@ function GameInfoTable({ roomName, creator, joiner, gameManager }) {
                         <th>Score</th>
                         <th>Debt</th>
                         <th>Is Turn</th>
+                        <th>Cover Turn</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr>
+                <tbody>                    <tr>
                         <td>{players[0].name}</td>
                         <td>{players[0].role}</td>
                         <td>{players[0].color}</td>
                         <td>{players[0].score}</td>
                         <td>{players[0].debt}</td>
                         <td>{players[0].isTurn ? 'Yes' : 'No'}</td>
-                    </tr>
-                    <tr>
+                        <td>{players[0].isCoverTurn ? 'Yes' : 'No'}</td>
+                    </tr>                    <tr>
                         <td>{joinerWaiting ? <span>Waiting for joiner...</span> : players[1].name}</td>
                         <td>{players[1].role}</td>
                         <td>{players[1].color}</td>
                         <td>{players[1].score}</td>
                         <td>{players[1].debt}</td>
                         <td>{players[1].isTurn ? 'Yes' : 'No'}</td>
+                        <td>{players[1].isCoverTurn ? 'Yes' : 'No'}</td>
                     </tr>
                 </tbody>
             </table>
@@ -272,7 +272,8 @@ export default function Room() {
     if (!gameManagerRef.current) { gameManagerRef.current = new GameManager(roomName, roomData); }    const gameManager = gameManagerRef.current;
     const currentUsername = localStorage.getItem('username');
     const playerRole = localStorage.getItem('playerRole');
-    const isMyTurn = roomData.whoseTurn === playerRole;return (
+    const isMyTurn = roomData.whoseTurn === playerRole;
+    return (
         <div>
             <Board 
                 isMyTurn={isMyTurn} 
