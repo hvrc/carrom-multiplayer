@@ -1,0 +1,53 @@
+create room
+join room
+usernames
+turn changing
+two windows
+game state, striker positioning, aiming, striker moving,
+coins moving, striker and coins stopping
+board size, border location
+pocket radius and locations
+coin mass, radius, color, positions
+striker mass, radius, position
+slingshot mechanism for striker
+striker position switching
+collisions between striker, coins, border
+pocket checking for coins
+coin deletion
+score incrementing or turn changing on coin pocket
+striker position reset on turn continuation
+pocket checking for striker
+debt incrementing, coin reseting to center, score decrementing, debt decrementing, turn changing on striker pocket
+
+queen pocketing, cover turn
+queen resetting to the center
+game reset after max points
+optimization, clean console logs, console logs to html
+
+list to track pocketed coins
+animation for pocketing coins
+animation for pocketing striker
+handling multiple coin pocket or coin and striker pocket, and turn continuation or change
+handle muliple coin reset to the center
+prioritize resetting queen to center if striker pocketed after
+assign more points for queen
+allow covering queen in the same turn
+
+slider to rotate starting grid 
+room scoreboard
+talcom powder
+board, coin designs
+realistic dimensions
+mobile controls
+sound!
+ui
+
+multiple games at the same time
+host on aws or gcp
+
+pocket animations
+cutting the moon, circles
+4 players
+new game modes
+
+slingshot double click bug

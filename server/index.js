@@ -1,0 +1,542 @@
+import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+
+// express server that handles the http requests
+// socket.io server that handles the socket connections
+// port can be process.env.PORT
+// rooms is a map that stores the rooms and their players
+// lastHeartbeat track last heartbeat time per clientId
+// heartbeatTimeout is the time in ms that a client has to send a heartbeat
+const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+    cors: {
+        origin: '*',
+        methods: ['GET', 'POST']
+    }
+});
+const PORT = 3000;
+const rooms = new Map();
+const lastHeartbeat = new Map();
+const heartbeatTimeout = 10 * 1000;
+
+// Initialize room structure
+function createRoom(roomName, creator) {
+    return {
+        creator,
+        joiner: null,
+        clientIds: new Set([creator.clientId]),
+        whoseTurn: 'creator',
+        debts: {
+            creator: 0,
+            joiner: 0
+        }
+    };
+}
+
+// deletes empty rooms
+function cleanupEmptyRooms() {
+    for (const [roomName, room] of rooms.entries()) {
+        const roomSockets = io.sockets.adapter.rooms.get(roomName);
+        if (!roomSockets || roomSockets.size === 0) {
+            rooms.delete(roomName);
+        }
+    }
+}
+
+// route to show list of active rooms
+app.get('/', (req, res) => {
+    let html = '';
+    if (rooms.size === 0) {
+        html += '<p>No rooms currently active.</p>';
+    } else {
+        html += '<ul>';
+        for (const [roomName, room] of rooms.entries()) {
+            html += `<li>${roomName} - Creator: ${room.creator?.username || 'N/A'}${room.joiner ? ', Joiner: ' + room.joiner.username : ''}</li>`;
+        }
+        html += '</ul>';
+    }
+    res.send(html);
+});
+
+// remove clients that haven't sent a heartbeat
+setInterval(() => {
+    const now = Date.now();
+    lastHeartbeat.forEach((lastTime, clientId) => {
+        if (now - lastTime > heartbeatTimeout) {
+            rooms.forEach((room, roomName) => {
+                if (room.creator && room.creator.clientId === clientId) {
+                    if (room.joiner) {
+                        room.creator = { username: room.joiner.username, clientId: room.joiner.clientId };
+                        room.joiner = null;
+                        room.clientIds.delete(clientId);
+                        io.to(roomName).emit('roomUpdate', {
+                            roomName,
+                            creator: { username: room.creator.username },
+                            joiner: null
+                        });
+                    } else {
+                        rooms.delete(roomName);
+                        io.to(roomName).emit('roomClosed', 'Creator has left the room');
+                    }
+                } else if (room.joiner && room.joiner.clientId === clientId) {
+                    room.joiner = null;
+                    room.clientIds.delete(clientId);
+                    io.to(roomName).emit('roomUpdate', {
+                        roomName,
+                        creator: { username: room.creator.username },
+                        joiner: null
+                    });
+                }
+            });
+            lastHeartbeat.delete(clientId);
+        }
+    });
+}, 5000);
+
+// listens for new client connections and handles their interactions
+io.on('connection', (socket) => {
+
+    // clientId ?
+    const clientId = socket.handshake.query.clientId;
+
+    // if clientId is not valid, emit error and disconnect
+    if (!clientId || clientId === 'null' || clientId === 'undefined') {
+        socket.emit('error', 'Invalid client ID');
+        socket.disconnect();
+        return;
+    }
+
+    // initialize heartbeat and track last heartbeat time
+    lastHeartbeat.set(clientId, Date.now());
+    socket.on('heartbeat', ({ clientId: incomingClientId }) => {
+        if (incomingClientId === clientId) {
+            lastHeartbeat.set(clientId, Date.now());
+        }
+    });
+
+    // check if client can access the room
+    // check if room is full
+    // check if room does not exist
+    // check if clientId is invalid
+    // check if clientId is valid, join the room and emit access granted
+    socket.on('checkRoomAccess', ({ roomName, clientId: incomingClientId }) => {
+        if (!incomingClientId || incomingClientId === 'null' || incomingClientId === 'undefined') {
+            socket.emit('error', 'Invalid client ID');
+            return;
+        }
+        if (!rooms.has(roomName)) {
+            socket.emit('error', 'Room does not exist');
+            return;
+        }
+        const room = rooms.get(roomName);
+        if (room.clientIds.size >= 2 && !room.clientIds.has(incomingClientId)) {
+            socket.emit('error', 'Room is full');
+            return;
+        }
+        socket.join(roomName);
+        socket.emit('accessGranted');
+    });
+
+    // handle client rejoining after refresh
+    // check if clientId is valid
+    // check if room exists
+    // check if clientId is the creator or joiner
+    // if yes, join the room and emit access granted
+    socket.on('rejoinRoom', ({ roomName, username, clientId: incomingClientId, playerRole }) => {
+        if (!incomingClientId || incomingClientId === 'null' || incomingClientId === 'undefined') {
+            socket.emit('error', 'Invalid client ID');
+            return;
+        }
+        if (!rooms.has(roomName)) {
+            socket.emit('error', 'Room does not exist');
+            return;
+        }
+        const room = rooms.get(roomName);
+        if (playerRole === 'creator' && room.creator && room.creator.clientId === incomingClientId) {
+            socket.join(roomName);
+            socket.emit('accessGranted');
+        } else if (playerRole === 'joiner' && room.joiner && room.joiner.clientId === incomingClientId) {
+            socket.join(roomName);
+            socket.emit('accessGranted');
+        } else {
+            socket.emit('error', 'Invalid session or role');
+        }
+    });
+
+    // check if clientId is valid
+    // check if roomName is valid
+    // check if room already exists
+    // create room, join room, emit player joined, emit room update
+    socket.on('createRoom', ({ roomName, username, clientId: incomingClientId }) => {
+        if (!incomingClientId || incomingClientId === 'null' || incomingClientId === 'undefined') {
+            socket.emit('error', 'Invalid client ID');
+            return;
+        }
+        if (rooms.has(roomName)) {
+            socket.emit('error', 'Room already exists');
+            return;
+        }
+        rooms.set(roomName, {
+            creator: { username, clientId: incomingClientId },
+            joiner: null,
+            clientIds: new Set([incomingClientId]),
+            whoseTurn: 'creator'
+        });
+        socket.join(roomName);
+        socket.emit('playerJoined', { username, roomName });
+        socket.emit('roomUpdate', {
+            roomName,
+            creator: { username },
+            joiner: null,
+            whoseTurn: 'creator'
+        });
+    });
+
+    // check if clientId is valid
+    // check if room exists
+    // check if room is full, two unique client ids
+    // create a joiner object, have it join the room
+    // emit player joined, emit room update
+    socket.on('joinRoom', ({ roomName, username, clientId: incomingClientId }) => {
+        if (!incomingClientId || incomingClientId === 'null' || incomingClientId === 'undefined') {
+            socket.emit('error', 'Invalid client ID');
+            return;
+        }
+        if (!rooms.has(roomName)) {
+            socket.emit('error', 'Room does not exist');
+            return;
+        }
+        const room = rooms.get(roomName);
+        if (room.clientIds.has(incomingClientId)) {
+            socket.emit('error', 'Client already in room');
+            return;
+        }
+        if (room.clientIds.size >= 2) {
+            socket.emit('error', 'Room is full');
+            return;
+        }
+        if (room.joiner) {
+            socket.emit('error', 'Room is full');
+            return;
+        }
+        room.joiner = { username, clientId: incomingClientId };
+        room.clientIds.add(incomingClientId);
+        socket.join(roomName);
+        socket.emit('playerJoined', { username, roomName });
+        io.to(roomName).emit('roomUpdate', {
+            roomName,
+            creator: { username: room.creator.username },
+            joiner: { username },
+            whoseTurn: room.whoseTurn
+        });
+    });
+
+    // asks for room data
+    socket.on('requestRoomData', ({ roomName }) => {
+        if (rooms.has(roomName)) {
+            const room = rooms.get(roomName);
+            socket.emit('roomUpdate', {
+                roomName,
+                creator: room.creator ? { username: room.creator.username } : null,
+                joiner: room.joiner ? { username: room.joiner.username } : null,
+                whoseTurn: room.whoseTurn
+            });
+        } else {
+            socket.emit('error', 'Room does not exist');
+        }
+    });
+
+    socket.on('switchTurn', ({ roomName, clientId: incomingClientId }) => {
+        if (!rooms.has(roomName)) {
+            socket.emit('error', 'Room does not exist');
+            return;
+        }
+        const room = rooms.get(roomName);
+        if (room.clientIds.size < 2) {
+            socket.emit('error', 'Waiting for another player');
+            return;
+        }
+        // Toggle turn
+        room.whoseTurn = room.whoseTurn === 'creator' ? 'joiner' : 'creator';
+        // Broadcast updated room state
+        io.to(roomName).emit('roomUpdate', {
+            roomName,
+            creator: { username: room.creator.username },
+            joiner: room.joiner ? { username: room.joiner.username } : null,
+            whoseTurn: room.whoseTurn
+        });
+        // Emit explicit turnSwitched event for striker reset
+        io.to(roomName).emit('turnSwitched', {
+            roomName,
+            nextTurn: room.whoseTurn
+        });
+    });
+
+    socket.on('continueTurn', ({ roomName, continuedTurns }) => {
+        if (!rooms.has(roomName)) {
+            socket.emit('error', 'Room does not exist');
+            return;
+        }
+        const room = rooms.get(roomName);
+        if (room.clientIds.size < 2) {
+            socket.emit('error', 'Waiting for another player');
+            return;
+        }
+        
+        // Keep the same turn but update the continued turns count
+        io.to(roomName).emit('roomUpdate', {
+            roomName,
+            creator: { username: room.creator.username },
+            joiner: room.joiner ? { username: room.joiner.username } : null,
+            whoseTurn: room.whoseTurn,
+            continuedTurns // Include remaining turns in room update
+        });
+        
+        // Emit turnContinued event for striker reset
+        io.to(roomName).emit('turnContinued', {
+            roomName,
+            continueWith: room.whoseTurn,
+            continuedTurns
+        });
+    });
+
+    // handle explicit leave action, immediate
+    // check if clientId is valid
+    // check if room exists
+    // check if clientId is the creator or joiner
+    // if creator, promote joiner to creator
+    // if joiner, remove joiner
+    // emit room update, emit room closed if creator leaves
+    // cleanup empty rooms
+    socket.on('leaveRoom', ({ roomName, clientId: incomingClientId }) => {
+        if (!incomingClientId || incomingClientId === 'null' || incomingClientId === 'undefined') {
+            socket.emit('error', 'Invalid client ID');
+            return;
+        }
+        if (rooms.has(roomName)) {
+            const room = rooms.get(roomName);
+            if (room.creator && room.creator.clientId === incomingClientId) {
+                if (room.joiner) {
+                    // promote joiner to creator
+                    room.creator = { username: room.joiner.username, clientId: room.joiner.clientId };
+                    room.joiner = null;
+                    room.clientIds.delete(incomingClientId);
+                    room.whoseTurn = 'creator'
+                    io.to(roomName).emit('roomUpdate', {
+                        roomName,
+                        creator: { username: room.creator.username },
+                        joiner: null,
+                        whoseTurn: room.whoseTurn
+                    });
+                } else {
+                    rooms.delete(roomName);
+                    io.to(roomName).emit('roomClosed', 'Creator has left the room');
+                }
+            } else if (room.joiner && room.joiner.clientId === incomingClientId) {
+                room.joiner = null;
+                room.clientIds.delete(incomingClientId);
+                io.to(roomName).emit('roomUpdate', {
+                    roomName,
+                    creator: { username: room.creator.username },
+                    joiner: null,
+                    whoseTurn: room.whoseTurn
+                    });
+                }
+                lastHeartbeat.delete(incomingClientId);
+                cleanupEmptyRooms();
+            }
+        });
+
+        // handle client disconnection, no immediate action, rely on heartbeat
+        socket.on('disconnect', () => {
+            cleanupEmptyRooms();
+        });
+
+        // handle striker movement sync
+        socket.on('strikerMove', (data) => {
+            socket.to(data.roomName).emit('strikerMove', data);
+        });
+
+        // handle coin movement sync
+        socket.on('coinsMove', (data) => {
+            socket.to(data.roomName).emit('coinsMove', data);
+        });
+
+        // handle coin pocketing sync
+        socket.on('coinsPocketed', (data) => {
+            socket.to(data.roomName).emit('coinsPocketed', data);
+        });        // handle striker pocketing and debt increment
+        socket.on('strikerPocketed', (data) => {
+            const { roomName, playerRole, debt } = data;
+            if (!rooms.has(roomName)) return;
+
+            const room = rooms.get(roomName);
+            if (!room.debts) {
+                room.debts = { creator: 0, joiner: 0 };
+            }
+
+            // Increment debt for the player who pocketed their striker
+            room.debts[playerRole] = debt;
+
+            // Emit debt update to all players in the room
+            io.to(roomName).emit('debtUpdate', {
+                roomName,
+                playerRole,
+                debt
+            });
+        });
+
+        // handle score updates when coins are pocketed
+        socket.on('updateScore', (data) => {
+            const { roomName, playerRole, coinColor } = data;
+            if (!rooms.has(roomName)) return;
+
+            const room = rooms.get(roomName);
+            if (!room.scores) {
+                room.scores = { creator: 0, joiner: 0 };
+            }
+
+            // Increment score for the player whose color matches the pocketed coin
+            room.scores[playerRole] = (room.scores[playerRole] || 0) + 1;
+            
+            // Emit score update to all players in the room
+            io.to(roomName).emit('scoreUpdate', {
+                roomName: roomName,
+                scores: room.scores
+            });
+        });        socket.on('updateDebt', ({ roomName, playerRole, debt }) => {
+            if (!rooms.has(roomName)) return;
+
+            const room = rooms.get(roomName);
+            if (!room.debts) {
+                room.debts = { creator: 0, joiner: 0 };
+            }
+            if (!room.scores) {
+                room.scores = { creator: 0, joiner: 0 };
+            }
+
+            const currentScore = room.scores[playerRole] || 0;
+            
+            // Check if player can pay debt automatically (has score > 0)
+            if (currentScore > 0) {
+                console.log(`Auto-paying debt for ${playerRole}. Score: ${currentScore}, Debt would be: ${debt}`);
+                
+                // Reduce score by 1 instead of increasing debt
+                room.scores[playerRole] = currentScore - 1;
+                // Keep debt the same (don't increase it)
+                // room.debts[playerRole] remains unchanged
+                
+                // Determine coin color based on player role
+                const coinColor = playerRole === 'creator' ? 'white' : 'black';
+
+                // Broadcast debt payment to all players in room
+                io.to(roomName).emit('debtPaid', {
+                    roomName,
+                    playerRole,
+                    newScore: room.scores[playerRole],
+                    newDebt: room.debts[playerRole], // Keep existing debt
+                    coinColor,
+                    // Generate a unique ID for the new coin
+                    coinId: Date.now() + Math.random()
+                });
+
+                // Also broadcast score update
+                io.to(roomName).emit('scoreUpdate', {
+                    roomName: roomName,
+                    scores: room.scores
+                });
+            } else {
+                // If can't pay debt, increment debt as before
+                room.debts[playerRole] = debt;
+
+                // Broadcast updated room state including debts
+                io.to(roomName).emit('roomUpdate', {
+                    roomName,
+                    creator: { 
+                        username: room.creator.username,
+                        debt: room.debts.creator 
+                    },
+                    joiner: room.joiner ? { 
+                        username: room.joiner.username,
+                        debt: room.debts.joiner 
+                    } : null,
+                    whoseTurn: room.whoseTurn,
+                    debts: room.debts  // Include debts in the update
+                });
+            }
+        });
+
+        // Handle striker pocketed event
+        socket.on('striker-pocketed', ({ roomName, playerRole, scoreChange, respawnCoin }) => {
+            if (!rooms.has(roomName)) return;
+            
+            const room = rooms.get(roomName);
+            
+            // Update score
+            if (!room.scores) {
+                room.scores = { creator: 0, joiner: 0 };
+            }
+            room.scores[playerRole] += scoreChange;
+
+            // Broadcast score update and coin respawn in one event
+            io.to(roomName).emit('striker-penalty', {
+                roomName,
+                playerRole,
+                newScore: room.scores[playerRole],
+                respawnCoin
+            });
+        });
+
+        // Handle coin respawn event
+        socket.on('coin-respawned', ({ roomId, coin }) => {
+            // Broadcast new coin position to other players
+            socket.to(roomId).emit('coin-respawned', {
+                coin
+            });
+        });
+
+        // Handle debt payment - when player has both score > 0 and debt > 0
+        socket.on('payDebt', ({ roomName, playerRole }) => {
+            if (!rooms.has(roomName)) {
+                socket.emit('error', 'Room does not exist');
+                return;
+            }
+
+            const room = rooms.get(roomName);
+            if (!room.scores) room.scores = { creator: 0, joiner: 0 };
+            if (!room.debts) room.debts = { creator: 0, joiner: 0 };
+
+            const currentScore = room.scores[playerRole] || 0;
+            const currentDebt = room.debts[playerRole] || 0;
+
+            // Check if player can pay debt (has both score > 0 and debt > 0)
+            if (currentScore > 0 && currentDebt > 0) {
+                // Reduce score by 1 and debt by 1
+                room.scores[playerRole] = currentScore - 1;
+                room.debts[playerRole] = currentDebt - 1;
+
+                // Determine coin color based on player role
+                const coinColor = playerRole === 'creator' ? 'white' : 'black';
+
+                // Broadcast debt payment to all players in room
+                io.to(roomName).emit('debtPaid', {
+                    roomName,
+                    playerRole,
+                    newScore: room.scores[playerRole],
+                    newDebt: room.debts[playerRole],
+                    coinColor,
+                    // Generate a unique ID for the new coin
+                    coinId: Date.now() + Math.random()
+                });
+            } else {
+                socket.emit('error', 'Cannot pay debt: insufficient score or no debt to pay');
+            }
+        });
+});
+
+// start server
+httpServer.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
