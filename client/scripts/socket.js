@@ -29,7 +29,7 @@ const startHeartbeat = () => {
     if (clientId && !heartbeatInterval) {
         heartbeatInterval = setInterval(() => {
             socket.emit('heartbeat', { clientId });
-            console.log('Sent heartbeat for clientId:', clientId);
+            // console.log('Sent heartbeat for clientId:', clientId);
         }, 5000); // Every 5 seconds
     }
 };

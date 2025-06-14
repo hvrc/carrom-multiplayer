@@ -61,11 +61,14 @@ export default class Striker3D {
         if (this.isPlacing) return;
         this.x += this.velocity.x;
         this.y += this.velocity.y;
+
         if (boardX !== undefined && boardY !== undefined && boardSize !== undefined) {
             this.handleBorderCollision(boardX, boardY, boardSize);
         }
+        
         this.velocity.x *= friction;
         this.velocity.y *= friction;
+
         if (Math.abs(this.velocity.x) < stopThreshold && Math.abs(this.velocity.y) < stopThreshold) {
             this.velocity.x = 0;
             this.velocity.y = 0;

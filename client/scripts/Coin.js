@@ -1,6 +1,3 @@
-// Coin.js
-// Carrom coin class for physics and rendering
-
 export default class Coin {
     constructor({
         id,
@@ -13,8 +10,9 @@ export default class Coin {
         acceleration = { x: 0, y: 0 },
         restitution = 0.7,
         friction = 0.98
-    }) {
-        this.id = id; // integer
+    }) 
+    {
+        this.id = id;
         this.color = color;
         this.radius = radius;
         this.coinMass = coinMass;
@@ -24,11 +22,14 @@ export default class Coin {
         this.acceleration = { ...acceleration };
         this.restitution = restitution;
         this.friction = friction;
-    }    draw(ctx) {
+    }
+    
+    draw(ctx) {
         ctx.save();
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.strokeStyle = 'black';
+
         if (this.color === 'black') {
             ctx.fillStyle = 'black';
             ctx.fill();
@@ -36,6 +37,7 @@ export default class Coin {
             ctx.fillStyle = 'red';
             ctx.fill();
         }
+        
         ctx.stroke();
         ctx.restore();
     }
@@ -47,7 +49,8 @@ export default class Coin {
         this.y += this.velocity.y;
         this.velocity.x *= this.friction;
         this.velocity.y *= this.friction;
-        // Optionally, reset acceleration after each update
+
+        // reset acceleration after each update
         this.acceleration.x = 0;
         this.acceleration.y = 0;
     }

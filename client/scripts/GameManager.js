@@ -1,7 +1,9 @@
 class GameManager {
     constructor(roomName, roomData = {}) {
         this.roomName = roomName;
-        this.whoseTurn = roomData.whoseTurn || 'creator';        this.playerData = [            {
+        this.whoseTurn = roomData.whoseTurn || 'creator';
+        this.playerData = [
+            {
                 role: 'creator',
                 color: 'white',
                 score: roomData.creator?.score || 0,
@@ -96,6 +98,36 @@ class GameManager {
             player.isCoverTurn = isCoverTurn;
         }
         return player;
+    }    resetGame() {
+        // reset all player data to initial state
+        this.whoseTurn = 'creator';
+        
+        // comprehensive reset of all player properties
+        this.playerData.forEach(player => {
+            // score and debt
+            player.score = 0;
+            player.debt = 0;
+            
+            // queen-related states
+            player.isCoverTurn = false;
+            player.hasPocketedQueen = false;
+            player.hasCoveredQueen = false;
+            
+            // turn management
+            player.isTurn = player.role === this.whoseTurn;
+        });
+        return this.playerData;
+    }
+
+    // get total count of coins by color currently on the board
+    getInitialCoinCounts() {
+        // this would be called during initialization to count how many coins were created
+        // for now we'll hardcode based on current setup, but this could be made dynamic
+        return {
+            white: 2,
+            black: 2,
+            red: 1 // queen
+        };
     }
 }
 

@@ -30,11 +30,12 @@ function GameCanvas({
   const [isAnimating, setIsAnimating] = useState(false);
   const [coins, setCoins] = useState([]);
   const coinsRef = useRef([]);
-
   // all-time pocketed coins
   // coins pocketed in current turn
   const pocketedCoinsRef = useRef(new Set()); 
-  const pocketedThisTurnRef = useRef([]); 
+  const pocketedThisTurnRef = useRef([]);
+  // track initial coin counts for game end detection
+  const initialCoinCountsRef = useRef({ white: 0, black: 0, red: 0 });
   const flickMaxLength = 120;
   const flickPower = 0.15;
 
@@ -97,10 +98,16 @@ function GameCanvas({
       color: "red",
       x: boardX + pocketRadius + coinOffset - 50,
       y: boardY + boardSize - pocketRadius - coinOffset,
-    });
-
-    coinsRef.current = [whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin];
+    });    coinsRef.current = [whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin];
     setCoins([whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin]);
+    
+    // count initial coins by color for game end detection
+    const allCoins = [whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin];
+    initialCoinCountsRef.current = {
+      white: allCoins.filter(coin => coin.color === 'white').length,
+      black: allCoins.filter(coin => coin.color === 'black').length,
+      red: allCoins.filter(coin => coin.color === 'red').length
+    };
   }, []);
 
   // add a coin to the list
@@ -652,7 +659,7 @@ function GameCanvas({
                 // determine which player's color matches the coin
                 if (isMyTurn && coin.color !== "red") {
                   let scoringPlayerRole;
-                  
+
                   if (coin.color === "white") {
                     scoringPlayerRole = "creator";
                   } else if (coin.color === "black") {
@@ -846,9 +853,24 @@ function GameCanvas({
           } else {
             socket.emit("switchTurn", { roomName });
           }
-          
           // clear pocketed coins for next turn
           pocketedThisTurnRef.current = [];
+        }
+
+        // check if all coins of one color have been pocketed (game end condition)
+        if (isMyTurn) {
+          const remainingCoins = coinsRef.current.filter(coin => coin.color !== "red"); // exclude queen
+          const whiteCoinsRemaining = remainingCoins.filter(coin => coin.color === "white");
+          const blackCoinsRemaining = remainingCoins.filter(coin => coin.color === "black");
+
+          // if all white or all black coins are pocketed, reset the game
+          if (whiteCoinsRemaining.length === 0 || blackCoinsRemaining.length === 0) {            
+            // emit game reset event to server
+            socket.emit("gameReset", {
+              roomName,
+              reason: whiteCoinsRemaining.length === 0 ? "All white coins pocketed" : "All black coins pocketed"
+            });
+          }
         }
       }
     }
@@ -957,9 +979,8 @@ function GameCanvas({
         // update continued turns count from server
         if (data.continuedTurns !== undefined) {
           continuedTurnsRef.current = data.continuedTurns;
-        //   console.log(`Remaining turns: ${continuedTurnsRef.current}`);
+          //console.log(`Remaining turns: ${continuedTurnsRef.current}`);
         }
-
         drawBoard(ctx);
       }
     };
@@ -1099,8 +1120,90 @@ function GameCanvas({
         playerData.hasCoveredQueen = data.hasCoveredQueen;
       }
     };
-    socket.on("queenCoveredUpdate", handleQueenCoveredUpdate);
-    return () => socket.off("queenCoveredUpdate", handleQueenCoveredUpdate);
+    socket.on("queenCoveredUpdate", handleQueenCoveredUpdate);    return () => socket.off("queenCoveredUpdate", handleQueenCoveredUpdate);
+  }, [socket, roomName, gameManager]);
+
+  // listen for game reset events
+  useEffect(() => {
+    if (!socket || !roomName) return;
+    const handleGameReset = (data) => {
+      if (data.roomName !== roomName) return;      
+      // reset all coins to initial positions
+      if (!canvasRef.current) return;
+      const boardX = (canvasRef.current.width - boardSize) / 2;
+      const boardY = (canvasRef.current.height - boardSize) / 2;
+      const pocketRadius = pocketDiameter / 2;
+      const coinOffset = 60;
+
+      // recreate initial coin setup
+      const whiteCoin1 = new Coin({
+        id: 1,
+        color: "white",
+        x: boardX + pocketRadius + coinOffset,
+        y: boardY + pocketRadius + coinOffset,
+      });
+
+      const blackCoin1 = new Coin({
+        id: 2,
+        color: "black",
+        x: boardX + boardSize - pocketRadius - coinOffset,
+        y: boardY + pocketRadius + coinOffset,
+      });
+
+      const blackCoin2 = new Coin({
+        id: 3,
+        color: "black",
+        x: boardX + pocketRadius + coinOffset,
+        y: boardY + boardSize - pocketRadius - coinOffset,
+      });
+
+      const whiteCoin2 = new Coin({
+        id: 4,
+        color: "white",
+        x: boardX + boardSize - pocketRadius - coinOffset,
+        y: boardY + boardSize - pocketRadius - coinOffset,
+      });
+
+      const queenCoin = new Coin({
+        id: 5,
+        color: "red",
+        x: boardX + pocketRadius + coinOffset - 50,
+        y: boardY + boardSize - pocketRadius - coinOffset,
+      });      // reset coins array
+      coinsRef.current = [whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin];
+      setCoins([whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin]);
+      
+      // reset initial coin counts
+      const allCoins = [whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin];
+      initialCoinCountsRef.current = {
+        white: allCoins.filter(coin => coin.color === 'white').length,
+        black: allCoins.filter(coin => coin.color === 'black').length,
+        red: allCoins.filter(coin => coin.color === 'red').length
+      };      // reset game state
+      pocketedCoinsRef.current.clear();
+      pocketedThisTurnRef.current = [];
+      continuedTurnsRef.current = 0;
+      debtRef.current = 0;
+      
+      // reset game manager state
+      gameManager.resetGame();
+      
+      // reset striker position
+      if (strikerRef.current) {
+        const initialX = boardX + boardSize / 2;
+        const initialY = boardY + boardSize - baseDistance - baseHeight / 2;
+        strikerRef.current.x = initialX;
+        strikerRef.current.y = initialY;
+        strikerRef.current.velocity = { x: 0, y: 0 };
+        strikerRef.current.isStrikerMoving = false;
+      }
+        // redraw board
+      const ctx = canvasRef.current.getContext("2d");
+      drawBoard(ctx);
+    };
+    
+    socket.on("gameReset", handleGameReset);
+    return () => socket.off("gameReset", handleGameReset);
   }, [socket, roomName, gameManager]);
 
   // separate useEffect for canvas event listeners

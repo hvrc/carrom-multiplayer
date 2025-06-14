@@ -23,7 +23,8 @@ function GameInfoTable({ roomName, creator, joiner, gameManager }) {
     return (
         <div>
             <div>Room Name: {roomName}</div> <br/>
-            <table border="1" cellPadding="6" style={{borderCollapse: 'collapse', minWidth: 400}}>                <thead>
+            <table border="1" cellPadding="6" style={{borderCollapse: 'collapse', minWidth: 400}}>
+                <thead>
                     <tr>
                         <th>Player</th>
                         <th>Role</th>
@@ -35,7 +36,8 @@ function GameInfoTable({ roomName, creator, joiner, gameManager }) {
                         <th>Has Pocketed Queen</th>
                         <th>Has Covered Queen</th>
                     </tr>
-                </thead>                <tbody>
+                </thead>
+                <tbody>
                     <tr>
                         <td>{players[0].name}</td>
                         <td>{players[0].role}</td>
@@ -68,6 +70,7 @@ export default function Room() {
     const { roomName } = useParams();
     const navigate = useNavigate();
     const [roomData, setRoomData] = useState(null);
+    const [tableRefresh, setTableRefresh] = useState(0); // force table re-render
     const gameManagerRef = useRef(null);
 
     // ?
@@ -132,6 +135,7 @@ export default function Room() {
         socket.on('roomUpdate', (data) => {
             if (data.roomName === roomName) {
                 setRoomData(data);
+
                 // Always update GameManager/playerData for debt/score changes
                 if (gameManagerRef.current) {
                     if (data.debts) {
@@ -145,7 +149,7 @@ export default function Room() {
                         gameManagerRef.current.playerData[1].score = data.joiner.score;
                     }
                 } else {
-                    // If GameManager is not yet initialized, initialize it with the latest data
+                    // if GameManager is not yet initialized, initialize it with the latest data
                     gameManagerRef.current = new GameManager(roomName, data);
                 }
             }
@@ -249,6 +253,44 @@ export default function Room() {
         
         return () => {
             socket.off('debtPaid');
+        };    
+    }, [roomName, socket]);
+
+    // listen for game reset events from server
+    useEffect(() => {
+        if (!socket || !roomName) return;
+        
+        const handleGameReset = (data) => {
+            if (data.roomName !== roomName || !gameManagerRef.current) return;
+                    
+            // reset GameManager state
+            gameManagerRef.current.resetGame();
+                
+            // force update roomData to trigger table re-render
+            // ensure turn is reset to creator
+            setRoomData(prev => ({
+                ...prev,
+                creator: {
+                    ...prev.creator,
+                    score: 0,
+                    debt: 0
+                },
+                joiner: {
+                    ...prev.joiner,
+                    score: 0,
+                    debt: 0
+                },
+                whoseTurn: 'creator' 
+            }));
+                
+            // force table refresh
+            setTableRefresh(prev => prev + 1);
+        };
+
+        socket.on('gameReset', handleGameReset);
+        
+        return () => {
+            socket.off('gameReset');
         };
     }, [roomName, socket]);
 
@@ -263,7 +305,9 @@ export default function Room() {
         socket.emit('leaveRoom', { roomName, clientId });
         localStorage.clear();
         navigate('/');
-    };    // emit switchTurn event to server
+    };
+    
+    // emit switchTurn event to server
     const handleSwitchTurn = () => {
         const newTurn = gameManagerRef.current.switchTurn();
         socket.emit('switchTurn', {
@@ -292,6 +336,7 @@ export default function Room() {
             />
             <div>Window owner: {currentUsername}</div>
             <GameInfoTable 
+                key={tableRefresh} 
                 roomName={roomName} 
                 creator={roomData.creator} 
                 joiner={roomData.joiner} 

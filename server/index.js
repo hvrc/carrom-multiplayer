@@ -21,7 +21,7 @@ const rooms = new Map();
 const lastHeartbeat = new Map();
 const heartbeatTimeout = 10 * 1000;
 
-// Initialize room structure
+// initialize room structure
 function createRoom(roomName, creator) {
     return {
         creator,
@@ -184,6 +184,7 @@ io.on('connection', (socket) => {
             clientIds: new Set([incomingClientId]),
             whoseTurn: 'creator'
         });
+
         socket.join(roomName);
         socket.emit('playerJoined', { username, roomName });
         socket.emit('roomUpdate', {
@@ -221,6 +222,7 @@ io.on('connection', (socket) => {
             socket.emit('error', 'Room is full');
             return;
         }
+
         room.joiner = { username, clientId: incomingClientId };
         room.clientIds.add(incomingClientId);
         socket.join(roomName);
@@ -237,12 +239,14 @@ io.on('connection', (socket) => {
     socket.on('requestRoomData', ({ roomName }) => {
         if (rooms.has(roomName)) {
             const room = rooms.get(roomName);
+
             socket.emit('roomUpdate', {
                 roomName,
                 creator: room.creator ? { username: room.creator.username } : null,
                 joiner: room.joiner ? { username: room.joiner.username } : null,
                 whoseTurn: room.whoseTurn
             });
+
         } else {
             socket.emit('error', 'Room does not exist');
         }
@@ -253,20 +257,25 @@ io.on('connection', (socket) => {
             socket.emit('error', 'Room does not exist');
             return;
         }
+
         const room = rooms.get(roomName);
+
         if (room.clientIds.size < 2) {
             socket.emit('error', 'Waiting for another player');
             return;
         }
-        // Toggle turn
+
+        // toggle turn
         room.whoseTurn = room.whoseTurn === 'creator' ? 'joiner' : 'creator';
-        // Broadcast updated room state
+
+        // broadcast updated room state
         io.to(roomName).emit('roomUpdate', {
             roomName,
             creator: { username: room.creator.username },
             joiner: room.joiner ? { username: room.joiner.username } : null,
             whoseTurn: room.whoseTurn
         });
+
         // Emit explicit turnSwitched event for striker reset
         io.to(roomName).emit('turnSwitched', {
             roomName,
@@ -279,22 +288,24 @@ io.on('connection', (socket) => {
             socket.emit('error', 'Room does not exist');
             return;
         }
+
         const room = rooms.get(roomName);
         if (room.clientIds.size < 2) {
             socket.emit('error', 'Waiting for another player');
             return;
         }
         
-        // Keep the same turn but update the continued turns count
+        // keep the same turn but update the continued turns count
+        // include remaining turns in room update
         io.to(roomName).emit('roomUpdate', {
             roomName,
             creator: { username: room.creator.username },
             joiner: room.joiner ? { username: room.joiner.username } : null,
             whoseTurn: room.whoseTurn,
-            continuedTurns // Include remaining turns in room update
+            continuedTurns 
         });
         
-        // Emit turnContinued event for striker reset
+        // emit turnContinued event for striker reset
         io.to(roomName).emit('turnContinued', {
             roomName,
             continueWith: room.whoseTurn,
@@ -315,6 +326,7 @@ io.on('connection', (socket) => {
             socket.emit('error', 'Invalid client ID');
             return;
         }
+
         if (rooms.has(roomName)) {
             const room = rooms.get(roomName);
             if (room.creator && room.creator.clientId === incomingClientId) {
@@ -330,10 +342,12 @@ io.on('connection', (socket) => {
                         joiner: null,
                         whoseTurn: room.whoseTurn
                     });
+
                 } else {
                     rooms.delete(roomName);
                     io.to(roomName).emit('roomClosed', 'Creator has left the room');
                 }
+
             } else if (room.joiner && room.joiner.clientId === incomingClientId) {
                 room.joiner = null;
                 room.clientIds.delete(incomingClientId);
@@ -367,7 +381,9 @@ io.on('connection', (socket) => {
         // handle coin pocketing sync
         socket.on('coinsPocketed', (data) => {
             socket.to(data.roomName).emit('coinsPocketed', data);
-        });        // handle striker pocketing and debt increment
+        });
+        
+        // handle striker pocketing and debt increment
         socket.on('strikerPocketed', (data) => {
             const { roomName, playerRole, debt } = data;
             if (!rooms.has(roomName)) return;
@@ -377,16 +393,18 @@ io.on('connection', (socket) => {
                 room.debts = { creator: 0, joiner: 0 };
             }
 
-            // Increment debt for the player who pocketed their striker
+            // increment debt for the player who pocketed their striker
             room.debts[playerRole] = debt;
 
-            // Emit debt update to all players in the room
+            // emit debt update to all players in the room
             io.to(roomName).emit('debtUpdate', {
                 roomName,
                 playerRole,
                 debt
             });
-        });        // handle score updates when coins are pocketed
+        });
+        
+        // handle score updates when coins are pocketed
         socket.on('updateScore', (data) => {
             const { roomName, playerRole, coinColor, increment } = data;
             if (!rooms.has(roomName)) return;
@@ -396,61 +414,66 @@ io.on('connection', (socket) => {
                 room.scores = { creator: 0, joiner: 0 };
             }
 
-            // Use increment value if provided, otherwise default to +1
+            // use increment value if provided, otherwise default to +1
             const scoreChange = increment !== undefined ? increment : 1;
             room.scores[playerRole] = (room.scores[playerRole] || 0) + scoreChange;
             
-            // Emit score update to all players in the room
+            // emit score update to all players in the room
             io.to(roomName).emit('scoreUpdate', {
                 roomName: roomName,
                 scores: room.scores
             });
-        });socket.on('updateDebt', ({ roomName, playerRole, debt }) => {
+        });
+        
+        socket.on('updateDebt', ({ roomName, playerRole, debt }) => {
             if (!rooms.has(roomName)) return;
-
             const room = rooms.get(roomName);
+
             if (!room.debts) {
                 room.debts = { creator: 0, joiner: 0 };
             }
+
             if (!room.scores) {
                 room.scores = { creator: 0, joiner: 0 };
             }
 
             const currentScore = room.scores[playerRole] || 0;
             
-            // Check if player can pay debt automatically (has score > 0)
+            // check if player can pay debt automatically, has score > 0
             if (currentScore > 0) {
-                console.log(`Auto-paying debt for ${playerRole}. Score: ${currentScore}, Debt would be: ${debt}`);
                 
-                // Reduce score by 1 instead of increasing debt
+                // reduce score by 1 instead of increasing debt
                 room.scores[playerRole] = currentScore - 1;
-                // Keep debt the same (don't increase it)
+                // keep debt the same, don't increase it
                 // room.debts[playerRole] remains unchanged
-                
-                // Determine coin color based on player role
+
+                // determine coin color based on player role
                 const coinColor = playerRole === 'creator' ? 'white' : 'black';
 
-                // Broadcast debt payment to all players in room
+                // broadcast debt payment to all players in room
+                // keep existing debt
+                // generate a unique ID for the new coin
                 io.to(roomName).emit('debtPaid', {
                     roomName,
                     playerRole,
                     newScore: room.scores[playerRole],
-                    newDebt: room.debts[playerRole], // Keep existing debt
+                    newDebt: room.debts[playerRole], 
                     coinColor,
-                    // Generate a unique ID for the new coin
                     coinId: Date.now() + Math.random()
                 });
 
-                // Also broadcast score update
+                // also broadcast score update
                 io.to(roomName).emit('scoreUpdate', {
                     roomName: roomName,
                     scores: room.scores
                 });
+
             } else {
-                // If can't pay debt, increment debt as before
+
+                // if can't pay debt, increment debt as before
                 room.debts[playerRole] = debt;
 
-                // Broadcast updated room state including debts
+                // broadcast updated room state including debts
                 io.to(roomName).emit('roomUpdate', {
                     roomName,
                     creator: { 
@@ -462,24 +485,24 @@ io.on('connection', (socket) => {
                         debt: room.debts.joiner 
                     } : null,
                     whoseTurn: room.whoseTurn,
-                    debts: room.debts  // Include debts in the update
+                    debts: room.debts  
                 });
             }
         });
 
-        // Handle striker pocketed event
+        // handle striker pocketed event
         socket.on('striker-pocketed', ({ roomName, playerRole, scoreChange, respawnCoin }) => {
             if (!rooms.has(roomName)) return;
-            
             const room = rooms.get(roomName);
             
-            // Update score
+            // update score
             if (!room.scores) {
                 room.scores = { creator: 0, joiner: 0 };
             }
+
             room.scores[playerRole] += scoreChange;
 
-            // Broadcast score update and coin respawn in one event
+            // broadcast score update and coin respawn in one event
             io.to(roomName).emit('striker-penalty', {
                 roomName,
                 playerRole,
@@ -488,15 +511,15 @@ io.on('connection', (socket) => {
             });
         });
 
-        // Handle coin respawn event
+        // handle coin respawn event
+        // broadcast new coin position to other players
         socket.on('coin-respawned', ({ roomId, coin }) => {
-            // Broadcast new coin position to other players
             socket.to(roomId).emit('coin-respawned', {
                 coin
             });
         });
 
-        // Handle debt payment - when player has both score > 0 and debt > 0
+        // handle debt payment, when player has both score > 0 and debt > 0
         socket.on('payDebt', ({ roomName, playerRole }) => {
             if (!rooms.has(roomName)) {
                 socket.emit('error', 'Room does not exist');
@@ -511,7 +534,8 @@ io.on('connection', (socket) => {
 
             // check if player can pay debt, has both score > 0 and debt > 0
             if (currentScore > 0 && currentDebt > 0) {
-                // Reduce score by 1 and debt by 1
+
+                // reduce score by 1 and debt by 1
                 room.scores[playerRole] = currentScore - 1;
                 room.debts[playerRole] = currentDebt - 1;
 
@@ -534,15 +558,13 @@ io.on('connection', (socket) => {
         });
         
         // handle queen reset event, when queen needs to be returned to center
+        // broadcast queen reset to all players in the room
         socket.on('queenReset', ({ roomName, playerRole }) => {
             if (!rooms.has(roomName)) {
                 socket.emit('error', 'Room does not exist');
                 return;
             }
-
-            console.log(`Queen reset by ${playerRole} in room ${roomName}`);
-
-            // broadcast queen reset to all players in the room
+            
             io.to(roomName).emit('queenReset', {
                 roomName,
                 playerRole
@@ -550,13 +572,13 @@ io.on('connection', (socket) => {
         });
 
         // handle cover turn state updates
+        // broadcast cover turn state to all players in the room
         socket.on('coverTurnUpdate', ({ roomName, playerRole, isCoverTurn }) => {
             if (!rooms.has(roomName)) {
                 socket.emit('error', 'Room does not exist');
                 return;
             }
 
-            console.log(`Cover turn update: ${playerRole} in room ${roomName} - isCoverTurn: ${isCoverTurn}`);            // broadcast cover turn state to all players in the room
             io.to(roomName).emit('coverTurnUpdate', {
                 roomName,
                 playerRole,
@@ -564,16 +586,14 @@ io.on('connection', (socket) => {
             });
         });
 
-        // Handle queen pocketed state updates
+        // handle queen pocketed state updates
+        // broadcast queen pocketed state to all players in the room
         socket.on('queenPocketedUpdate', ({ roomName, playerRole, hasPocketedQueen }) => {
             if (!rooms.has(roomName)) {
                 socket.emit('error', 'Room does not exist');
                 return;
             }
 
-            console.log(`Queen pocketed update: ${playerRole} in room ${roomName} - hasPocketedQueen: ${hasPocketedQueen}`);
-
-            // Broadcast queen pocketed state to all players in the room
             io.to(roomName).emit('queenPocketedUpdate', {
                 roomName,
                 playerRole,
@@ -581,21 +601,44 @@ io.on('connection', (socket) => {
             });
         });
 
-        // Handle queen covered state updates
+        // handle queen covered state updates
+        // broadcast queen covered state to all players in the room
         socket.on('queenCoveredUpdate', ({ roomName, playerRole, hasCoveredQueen }) => {
             if (!rooms.has(roomName)) {
                 socket.emit('error', 'Room does not exist');
                 return;
             }
 
-            console.log(`Queen covered update: ${playerRole} in room ${roomName} - hasCoveredQueen: ${hasCoveredQueen}`);
-
-            // Broadcast queen covered state to all players in the room
             io.to(roomName).emit('queenCoveredUpdate', {
                 roomName,
                 playerRole,
-                hasCoveredQueen
+                hasCoveredQueen            });
+        });
+
+        // handle game reset events
+        // reset room state to initial state
+        // always reset to creator's turn
+        // broadcast game reset to all players in the room
+        // broadcast room update to sync turn state and ensure UI updates
+        socket.on('gameReset', ({ roomName, reason }) => {
+            if (!rooms.has(roomName)) {
+                socket.emit('error', 'Room does not exist');
+                return;
+            }
+
+            const room = rooms.get(roomName);
+            room.whoseTurn = 'creator'; 
+            room.debts = {
+                creator: 0,
+                joiner: 0
+            };
+
+            io.to(roomName).emit('gameReset', {
+                roomName,
+                reason
             });
+
+            io.to(roomName).emit('roomUpdate', room);
         });
     });
 
