@@ -20,35 +20,37 @@ pocket checking for striker
 debt incrementing, coin reseting to center, score decrementing, debt decrementing, turn changing on striker pocket
 queen pocketing, cover turn
 queen resetting to the center
-
 game reset after max points
-optimization, clean console logs, console logs to html
-better physics
-
-list to track pocketed coins
-animation for pocketing coins
-animation for pocketing striker
-handling multiple coin pocket or coin and striker pocket, and turn continuation or change
-handle positioning of muliple coin reset to the center
+clean console logs
 prioritize resetting queen to center if striker pocketed after
-assign more points for queen
-allow covering queen in the same turn
-
-slider to rotate starting grid 
-room scoreboard
-talcom powder
-board, coin designs
 realistic dimensions
+
+better physics
+slingshot double click bug
+animation for pocketing coins, striker
+handle positioning of muliple coin reset to the center
+starting grid
+assign more points for queen
+room scoreboard
+refresh, wait time
+better room control
+client optimization
+server optimization
+console logs to html, more ui
+
+ui
+board, coin designs
 mobile controls
 sound!
-ui
-
+deploy
 multiple games at the same time
-host on aws or gcp
-
-pocket animations
-cutting the moon, circles
-4 players
+talcom powder
+merge with carrom 1.0
 new game modes
+cutting the moon, circles
+slider to rotate starting grid
 
-slingshot double click bug
+display pocketed coins
+handling multiple coin pocket or coin and striker pocket, and turn continuation or change
+allow covering queen in the same turn
+4 players
