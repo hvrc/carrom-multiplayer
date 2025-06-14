@@ -24,10 +24,11 @@ game reset after max points
 clean console logs
 prioritize resetting queen to center if striker pocketed after
 realistic dimensions
-
 slingshot double click bug
+
 animation for pocketing coins, striker
 handle positioning of muliple coin reset to the center
+no overlapping
 better physics
 starting grid
 assign more points for queen

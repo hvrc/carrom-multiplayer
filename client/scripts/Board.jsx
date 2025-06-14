@@ -353,12 +353,14 @@ function GameCanvas({
     setFlick({ active: false, startX: 0, startY: 0, endX: 0, endY: 0 });
     setIsAnimating(true);
   };
-
   // unified mouse event handlers to switch between placement and flicker modes
   // placement mode, allow dragging the striker
   // check if click is on striker
   // 30px radius for striker hit
   const handleMouseDown = (e) => {
+    // block all input when animation is active (striker/coins are moving)
+    if (isAnimating) return;
+    
     if (isFlickerActive) {
       handleFlickMouseDown(e);
     } else if (canPlace) {
@@ -378,8 +380,10 @@ function GameCanvas({
       }
     }
   };
-
   const handleMouseMove = (e) => {
+    // block all input when animation is active (striker/coins are moving)
+    if (isAnimating) return;
+    
     if (isFlickerActive) {
       handleFlickMouseMove(e);
     } else if (isPlacing && canPlace && isMyTurn && strikerRef.current) {
@@ -402,8 +406,10 @@ function GameCanvas({
       drawBoard(ctx);
     }
   };
-
   const handleMouseUp = (e) => {
+    // block all input when animation is active (striker/coins are moving)
+    if (isAnimating) return;
+    
     if (isFlickerActive) {
       handleFlickMouseUp(e);
     } else if (isPlacing) {
@@ -1228,10 +1234,11 @@ function GameCanvas({
       <canvas
         ref={canvasRef}
         width={900}
-        height={900}
-        style={{
+        height={900}        style={{
           backgroundColor: "#fff",
-          cursor: isPlacing
+          cursor: isAnimating
+            ? "not-allowed"
+            : isPlacing
             ? "grabbing"
             : isMyTurn && canPlace
               ? "grab"
