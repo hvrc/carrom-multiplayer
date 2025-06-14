@@ -7,7 +7,9 @@ class GameManager {
                 score: roomData.creator?.score || 0,
                 debt: roomData.creator?.debt || 0,
                 isTurn: this.whoseTurn === 'creator',
-                isCoverTurn: false
+                isCoverTurn: false,
+                hasPocketedQueen: false,
+                hasCoveredQueen: false
             },
             {
                 role: 'joiner',
@@ -15,7 +17,9 @@ class GameManager {
                 score: roomData.joiner?.score || 0,
                 debt: roomData.joiner?.debt || 0,
                 isTurn: this.whoseTurn === 'joiner',
-                isCoverTurn: false
+                isCoverTurn: false,
+                hasPocketedQueen: false,
+                hasCoveredQueen: false
             }
         ];
     }

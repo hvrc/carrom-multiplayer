@@ -31,10 +31,12 @@ function GameInfoTable({ roomName, creator, joiner, gameManager }) {
                         <th>Score</th>
                         <th>Debt</th>
                         <th>Is Turn</th>
-                        <th>Cover Turn</th>
+                        <th>Is Cover Turn</th>
+                        <th>Has Pocketed Queen</th>
+                        <th>Has Covered Queen</th>
                     </tr>
-                </thead>
-                <tbody>                    <tr>
+                </thead>                <tbody>
+                    <tr>
                         <td>{players[0].name}</td>
                         <td>{players[0].role}</td>
                         <td>{players[0].color}</td>
@@ -42,7 +44,10 @@ function GameInfoTable({ roomName, creator, joiner, gameManager }) {
                         <td>{players[0].debt}</td>
                         <td>{players[0].isTurn ? 'Yes' : 'No'}</td>
                         <td>{players[0].isCoverTurn ? 'Yes' : 'No'}</td>
-                    </tr>                    <tr>
+                        <td>{players[0].hasPocketedQueen ? 'Yes' : 'No'}</td>
+                        <td>{players[0].hasCoveredQueen ? 'Yes' : 'No'}</td>
+                    </tr>
+                    <tr>
                         <td>{joinerWaiting ? <span>Waiting for joiner...</span> : players[1].name}</td>
                         <td>{players[1].role}</td>
                         <td>{players[1].color}</td>
@@ -50,6 +55,8 @@ function GameInfoTable({ roomName, creator, joiner, gameManager }) {
                         <td>{players[1].debt}</td>
                         <td>{players[1].isTurn ? 'Yes' : 'No'}</td>
                         <td>{players[1].isCoverTurn ? 'Yes' : 'No'}</td>
+                        <td>{players[1].hasPocketedQueen ? 'Yes' : 'No'}</td>
+                        <td>{players[1].hasCoveredQueen ? 'Yes' : 'No'}</td>
                     </tr>
                 </tbody>
             </table>
@@ -269,7 +276,8 @@ export default function Room() {
     if (!roomData) { return <div>Loading room...</div>; }
 
     // instantiate GameManager, if not already, after roomData is loaded
-    if (!gameManagerRef.current) { gameManagerRef.current = new GameManager(roomName, roomData); }    const gameManager = gameManagerRef.current;
+    if (!gameManagerRef.current) { gameManagerRef.current = new GameManager(roomName, roomData); }
+    const gameManager = gameManagerRef.current;
     const currentUsername = localStorage.getItem('username');
     const playerRole = localStorage.getItem('playerRole');
     const isMyTurn = roomData.whoseTurn === playerRole;

@@ -53,16 +53,54 @@ function GameCanvas({
     if (!canvasRef.current) return;
     const boardX = (canvasRef.current.width - boardSize) / 2;
     const boardY = (canvasRef.current.height - boardSize) / 2;
+    const pocketRadius = pocketDiameter / 2;
+    const coinOffset = 60; // distance from pocket center to coin
+
+    // Position coins near each pocket
+    // Top-left pocket: white coin
+    const whiteCoin1 = new Coin({
+      id: 1,
+      color: "white",
+      x: boardX + pocketRadius + coinOffset,
+      y: boardY + pocketRadius + coinOffset,
+    });
+
+    // Top-right pocket: black coin
+    const blackCoin1 = new Coin({
+      id: 2,
+      color: "black",
+      x: boardX + boardSize - pocketRadius - coinOffset,
+      y: boardY + pocketRadius + coinOffset,
+    });
+
+    // Bottom-left pocket: black coin
+    const blackCoin2 = new Coin({
+      id: 3,
+      color: "black",
+      x: boardX + pocketRadius + coinOffset,
+      y: boardY + boardSize - pocketRadius - coinOffset,
+    });
+
+    // Bottom-right pocket: white coin
+    const whiteCoin2 = new Coin({
+      id: 4,
+      color: "white",
+      x: boardX + boardSize - pocketRadius - coinOffset,
+      y: boardY + boardSize - pocketRadius - coinOffset,
+    });
+
+    // Queen at center
     const centerX = boardX + boardSize / 2;
     const centerY = boardY + boardSize / 2;
-    const offset = 30;
-    const whiteCoin1 = new Coin({ id: 1, color: "white", x: centerX - offset, y: centerY,});
-    const whiteCoin2 = new Coin({ id: 2, color: "white", x: centerX + offset, y: centerY,});
-    const blackCoin1 = new Coin({ id: 3, color: "black", x: centerX, y: centerY - offset,});
-    const blackCoin2 = new Coin({ id: 4, color: "black", x: centerX, y: centerY + offset,});
-    const queenCoin = new Coin({ id: 5, color: "red", x: centerX, y: centerY });
-    coinsRef.current = [ whiteCoin1, whiteCoin2, blackCoin1, blackCoin2, queenCoin];
-    setCoins([whiteCoin1, whiteCoin2, blackCoin1, blackCoin2, queenCoin]);
+    const queenCoin = new Coin({
+      id: 5,
+      color: "red",
+      x: boardX + pocketRadius + coinOffset - 50,
+      y: boardY + boardSize - pocketRadius - coinOffset,
+    });
+
+    coinsRef.current = [whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin];
+    setCoins([whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin]);
   }, []);
 
   // add a coin to the list
@@ -484,8 +522,8 @@ function GameCanvas({
       }
 
       const ctx = canvasRef.current.getContext("2d");
-
       const pocketRadius = pocketDiameter / 2;
+      
       const pockets = [
         { x: boardX + pocketRadius, y: boardY + pocketRadius },
         { x: boardX + boardSize - pocketRadius, y: boardY + pocketRadius },
@@ -504,6 +542,7 @@ function GameCanvas({
             striker.x - pocket.x,
             striker.y - pocket.y,
           );
+
           if (strikerDist < pocketRadius - striker.radius / 2) {
             setIsAnimating(false);
             setIsFlickerActive(false);
@@ -540,16 +579,30 @@ function GameCanvas({
               if (lastScoredCoinId !== coin.id) {
                 pocketedCoins.push(coin);
                 lastScoredCoinId = coin.id;
-
-                // queen pocketed
+                  // queen pocketed
                 if (coin.color === "red") {
                   const currentPlayerData = gameManager.getPlayerData(playerRole);
 
                   // set cover turn to true when queen is pocketed
                   currentPlayerData.isCoverTurn = true;
+                  currentPlayerData.hasPocketedQueen = true;
 
-                  // increment player score when queen is pocketed
+                  // emit cover turn state to synchronize across clients
                   if (isMyTurn) {
+                    socket.emit("coverTurnUpdate", {
+                      roomName,
+                      playerRole,
+                      isCoverTurn: true
+                    });
+
+                    // emit queen pocketed state
+                    socket.emit("queenPocketedUpdate", {
+                      roomName,
+                      playerRole,
+                      hasPocketedQueen: true
+                    });
+
+                    // increment player score when queen is pocketed
                     socket.emit("updateScore", {
                       roomName,
                       playerRole: playerRole,
@@ -645,7 +698,9 @@ function GameCanvas({
             });
 
           // no other coins pocketed, just continue for cover turn
-          } else {
+          } 
+          
+          else {
             continuedTurnsRef.current+=2;
             socket.emit(
               "continueTurn", {
@@ -661,11 +716,34 @@ function GameCanvas({
           
           // if no coins were pocketed this turn, or no player color coins were pocketed
           if ( pocketedThisTurnRef.current.length === 0 || pocketedPlayerColorCoins.length === 0 ) {
-
-            // is this is my turn check necessary?
+              // is this is my turn check necessary?
             // cover turn failed, reset queen and decrement score
             if (isMyTurn) {
               currentPlayerData.isCoverTurn = false;
+              currentPlayerData.hasPocketedQueen = false;
+              currentPlayerData.hasCoveredQueen = false;
+              
+              // emit cover turn state update
+              socket.emit("coverTurnUpdate", {
+                roomName,
+                playerRole,
+                isCoverTurn: false
+              });
+
+              // emit queen pocketed state reset
+              socket.emit("queenPocketedUpdate", {
+                roomName,
+                playerRole,
+                hasPocketedQueen: false
+              });
+
+              // emit queen covered state reset
+              socket.emit("queenCoveredUpdate", {
+                roomName,
+                playerRole,
+                hasCoveredQueen: false
+              });
+              
               socket.emit("queenReset", {
                 roomName,
                 playerRole: playerRole,
@@ -677,10 +755,24 @@ function GameCanvas({
               });
             }
             socket.emit( "switchTurn",{ roomName });
-          } 
-          
-          else {
+          }          else {
             currentPlayerData.isCoverTurn = false;
+            currentPlayerData.hasCoveredQueen = true;
+            
+            // emit cover turn state update
+            socket.emit("coverTurnUpdate", {
+              roomName,
+              playerRole,
+              isCoverTurn: false
+            });
+
+            // emit queen covered state
+            socket.emit("queenCoveredUpdate", {
+              roomName,
+              playerRole,
+              hasCoveredQueen: true
+            });
+            
             if (continuedTurnsRef.current > 0) {
               continuedTurnsRef.current--;
               socket.emit("continueTurn", {
@@ -700,14 +792,19 @@ function GameCanvas({
             (coin) => coin.color === playerColor,
           );
 
-          if (pocketedOwnColorCoins.length > 0) {
+          if (pocketedOwnColorCoins.length == 0) {
             continuedTurnsRef.current += pocketedOwnColorCoins.length - 1;
             socket.emit("continueTurn", {
               roomName,
               continuedTurns: continuedTurnsRef.current,
             });
 
-          } else {
+            socket.emit("switchTurn", { roomName });
+
+          } 
+
+          // 
+          else {
             socket.emit("switchTurn", { roomName });
           }
           
@@ -910,7 +1007,6 @@ function GameCanvas({
   // listen for queen reset events
   // add queen back to center on both clients
   // force a redraw
-
   useEffect(() => {
     if (!socket || !roomName) return;
     const handleQueenReset = (data) => {
@@ -922,6 +1018,51 @@ function GameCanvas({
     socket.on("queenReset", handleQueenReset);
     return () => socket.off("queenReset", handleQueenReset);
   }, [socket, roomName]);
+  // listen for cover turn state updates
+  useEffect(() => {
+    if (!socket || !roomName) return;
+    const handleCoverTurnUpdate = (data) => {
+      if (data.roomName !== roomName) return;
+      
+      // update the cover turn state for the specified player
+      const playerData = gameManager.getPlayerData(data.playerRole);
+      if (playerData) {
+        playerData.isCoverTurn = data.isCoverTurn;
+      }
+    };
+    socket.on("coverTurnUpdate", handleCoverTurnUpdate);
+    return () => socket.off("coverTurnUpdate", handleCoverTurnUpdate);
+  }, [socket, roomName, gameManager]);
+
+  // listen for queen pocketed state updates
+  useEffect(() => {
+    if (!socket || !roomName) return;
+    const handleQueenPocketedUpdate = (data) => {
+      if (data.roomName !== roomName) return;
+      
+      const playerData = gameManager.getPlayerData(data.playerRole);
+      if (playerData) {
+        playerData.hasPocketedQueen = data.hasPocketedQueen;
+      }
+    };
+    socket.on("queenPocketedUpdate", handleQueenPocketedUpdate);
+    return () => socket.off("queenPocketedUpdate", handleQueenPocketedUpdate);
+  }, [socket, roomName, gameManager]);
+
+  // listen for queen covered state updates
+  useEffect(() => {
+    if (!socket || !roomName) return;
+    const handleQueenCoveredUpdate = (data) => {
+      if (data.roomName !== roomName) return;
+      
+      const playerData = gameManager.getPlayerData(data.playerRole);
+      if (playerData) {
+        playerData.hasCoveredQueen = data.hasCoveredQueen;
+      }
+    };
+    socket.on("queenCoveredUpdate", handleQueenCoveredUpdate);
+    return () => socket.off("queenCoveredUpdate", handleQueenCoveredUpdate);
+  }, [socket, roomName, gameManager]);
 
   // separate useEffect for canvas event listeners
   useEffect(() => {

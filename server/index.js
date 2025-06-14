@@ -506,35 +506,34 @@ io.on('connection', (socket) => {
             const room = rooms.get(roomName);
             if (!room.scores) room.scores = { creator: 0, joiner: 0 };
             if (!room.debts) room.debts = { creator: 0, joiner: 0 };
-
             const currentScore = room.scores[playerRole] || 0;
             const currentDebt = room.debts[playerRole] || 0;
 
-            // Check if player can pay debt (has both score > 0 and debt > 0)
+            // check if player can pay debt, has both score > 0 and debt > 0
             if (currentScore > 0 && currentDebt > 0) {
                 // Reduce score by 1 and debt by 1
                 room.scores[playerRole] = currentScore - 1;
                 room.debts[playerRole] = currentDebt - 1;
 
-                // Determine coin color based on player role
+                // determine coin color based on player role
                 const coinColor = playerRole === 'creator' ? 'white' : 'black';
 
-                // Broadcast debt payment to all players in room
+                // broadcast debt payment to all players in room
+                // generate a unique ID for the new coin
                 io.to(roomName).emit('debtPaid', {
                     roomName,
                     playerRole,
                     newScore: room.scores[playerRole],
                     newDebt: room.debts[playerRole],
                     coinColor,
-                    // Generate a unique ID for the new coin
                     coinId: Date.now() + Math.random()
                 });
             } else {
                 socket.emit('error', 'Cannot pay debt: insufficient score or no debt to pay');
             }
         });
-
-        // Handle queen reset event - when queen needs to be returned to center
+        
+        // handle queen reset event, when queen needs to be returned to center
         socket.on('queenReset', ({ roomName, playerRole }) => {
             if (!rooms.has(roomName)) {
                 socket.emit('error', 'Room does not exist');
@@ -543,10 +542,59 @@ io.on('connection', (socket) => {
 
             console.log(`Queen reset by ${playerRole} in room ${roomName}`);
 
-            // Broadcast queen reset to all players in the room
+            // broadcast queen reset to all players in the room
             io.to(roomName).emit('queenReset', {
                 roomName,
                 playerRole
+            });
+        });
+
+        // handle cover turn state updates
+        socket.on('coverTurnUpdate', ({ roomName, playerRole, isCoverTurn }) => {
+            if (!rooms.has(roomName)) {
+                socket.emit('error', 'Room does not exist');
+                return;
+            }
+
+            console.log(`Cover turn update: ${playerRole} in room ${roomName} - isCoverTurn: ${isCoverTurn}`);            // broadcast cover turn state to all players in the room
+            io.to(roomName).emit('coverTurnUpdate', {
+                roomName,
+                playerRole,
+                isCoverTurn
+            });
+        });
+
+        // Handle queen pocketed state updates
+        socket.on('queenPocketedUpdate', ({ roomName, playerRole, hasPocketedQueen }) => {
+            if (!rooms.has(roomName)) {
+                socket.emit('error', 'Room does not exist');
+                return;
+            }
+
+            console.log(`Queen pocketed update: ${playerRole} in room ${roomName} - hasPocketedQueen: ${hasPocketedQueen}`);
+
+            // Broadcast queen pocketed state to all players in the room
+            io.to(roomName).emit('queenPocketedUpdate', {
+                roomName,
+                playerRole,
+                hasPocketedQueen
+            });
+        });
+
+        // Handle queen covered state updates
+        socket.on('queenCoveredUpdate', ({ roomName, playerRole, hasCoveredQueen }) => {
+            if (!rooms.has(roomName)) {
+                socket.emit('error', 'Room does not exist');
+                return;
+            }
+
+            console.log(`Queen covered update: ${playerRole} in room ${roomName} - hasCoveredQueen: ${hasCoveredQueen}`);
+
+            // Broadcast queen covered state to all players in the room
+            io.to(roomName).emit('queenCoveredUpdate', {
+                roomName,
+                playerRole,
+                hasCoveredQueen
             });
         });
     });
