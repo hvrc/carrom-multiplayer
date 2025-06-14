@@ -33,10 +33,16 @@ function GameCanvas({
   // all-time pocketed coins
   // coins pocketed in current turn
   const pocketedCoinsRef = useRef(new Set()); 
-  const pocketedThisTurnRef = useRef([]);  // track initial coin counts for game end detection
+  const pocketedThisTurnRef = useRef([]);
+  
+  // track initial coin counts for game end detection
   const initialCoinCountsRef = useRef({ white: 0, black: 0, red: 0 });
   // queue turn actions until all movement stops
   const pendingTurnActionRef = useRef(null);
+  // track coins being pocketed (for animation)
+  const beingPocketedCoinsRef = useRef([]);
+  // track striker being pocketed (for animation)
+  const beingPocketedStrikerRef = useRef(null);
   
   const flickMaxLength = 120;
   const flickPower = 0.15;
@@ -60,7 +66,9 @@ function GameCanvas({
     const boardX = (canvasRef.current.width - boardSize) / 2;
     const boardY = (canvasRef.current.height - boardSize) / 2;
     const pocketRadius = pocketDiameter / 2;
-    const coinOffset = 60; // distance from pocket center to coin
+
+    // distance from pocket center to coin
+    const coinOffset = 60; 
 
     // Position coins near each pocket
     // Top-left pocket: white coin
@@ -103,7 +111,9 @@ function GameCanvas({
       color: "red",
       x: boardX + pocketRadius + coinOffset - 50,
       y: boardY + boardSize - pocketRadius - coinOffset,
-    });    coinsRef.current = [whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin];
+    });
+    
+    coinsRef.current = [whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin];
     setCoins([whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin]);
     
     // count initial coins by color for game end detection
@@ -184,8 +194,6 @@ function GameCanvas({
     
     // redraw the board
     drawBoard(ctx);
-    
-    console.log(`Striker reset executed: ${actionData.type}`, { newX, newY });
   }
 
   const drawBoard = (ctx) => {
@@ -376,8 +384,7 @@ function GameCanvas({
   };
 
   const handleFlickMouseMove = (e) => {
-    if (!isMyTurn || !strikerRef.current || !isFlickerActive || !flick.active)
-      return;
+    if (!isMyTurn || !strikerRef.current || !isFlickerActive || !flick.active) return;
     const rect = canvasRef.current.getBoundingClientRect();
     let x = e.clientX - rect.left;
     let y = e.clientY - rect.top;
@@ -391,6 +398,7 @@ function GameCanvas({
   const handleFlickMouseUp = (e) => {
     if (!isMyTurn || !strikerRef.current || !isFlickerActive || !flick.active)
       return;
+
     // calculate velocity (opposite direction of pull)
     let dx = flick.startX - flick.endX;
     let dy = flick.startY - flick.endY;
@@ -406,6 +414,7 @@ function GameCanvas({
     setFlick({ active: false, startX: 0, startY: 0, endX: 0, endY: 0 });
     setIsAnimating(true);
   };
+
   // unified mouse event handlers to switch between placement and flicker modes
   // placement mode, allow dragging the striker
   // check if click is on striker
@@ -598,10 +607,11 @@ function GameCanvas({
           y: boardY + boardSize - pocketRadius,
         },
       ];
-      
+
+
       // check if striker is pocketed
       const striker = strikerRef.current;
-      if (isNearAnyPocket(striker.x, striker.y, pockets)) {
+      if (!striker.beingPocketed && isNearAnyPocket(striker.x, striker.y, pockets)) {
         for (const pocket of pockets) {
           const strikerDist = Math.hypot(
             striker.x - pocket.x,
@@ -609,67 +619,187 @@ function GameCanvas({
           );
           
           if (strikerDist < pocketRadius - striker.radius / 2) {
-            setIsAnimating(false);
-            setIsFlickerActive(false);
-            setCanPlace(true);
-
-            const currentPlayerData = gameManager.getPlayerData(playerRole);
+            // start striker pocketing animation instead of immediate processing
+            striker.startPocketing(pocket.x, pocket.y);
+            beingPocketedStrikerRef.current = {
+              striker: striker,
+              pocket: pocket,
+              playerRole: playerRole
+            };
             
-            // if player has pocketed queen, reset queen instead of paying debt with player coin
-            if (currentPlayerData.hasPocketedQueen) {
-              // reset queen to center
-              socket.emit("queenReset", {
-                roomName,
-                playerRole: playerRole,
-              });
-              
-              // reset queen status flags
-              currentPlayerData.hasPocketedQueen = false;
-              currentPlayerData.hasCoveredQueen = false;
-              currentPlayerData.isCoverTurn = false;
-              
-              // emit state updates to other player
-              socket.emit("queenPocketedUpdate", {
-                roomName,
-                playerRole,
-                hasPocketedQueen: false
-              });
-              
-              socket.emit("queenCoveredUpdate", {
-                roomName,
-                playerRole,
-                hasCoveredQueen: false
-              });
-              
-              socket.emit("coverTurnUpdate", {
-                roomName,
-                playerRole,
-                isCoverTurn: false
-              });
-              
-            } else {
-              // normal striker pocketing, increment debt and let server handle automatic payment
-              debtRef.current++;
-
-              // emit debt update, server will handle automatic payment if score > 0
-              socket.emit("updateDebt", {
-                roomName,
-                playerRole,
-                debt: debtRef.current,
-              });
-            }
-
+            // ensure animation loop is running for striker pocketing
+            setIsAnimating(true);
+            
+            // emit striker animation event to synchronize across clients
             if (socket && roomName) {
-              socket.emit("switchTurn", { roomName });
+              socket.emit("strikerAnimation", {
+                roomName,
+                type: "startPocketing",
+                pocketX: pocket.x,
+                pocketY: pocket.y,
+                playerRole: playerRole
+              });
             }
-            return;
+            
+            // scoring/debt logic will be handled when animation completes
+            // don't process scoring immediately, let animation complete first
+            // exit the pocket loop since striker is now being pocketed
+
+            break; 
           }
         }
       }
 
+      // process coin pocketing animations
+      beingPocketedCoinsRef.current = beingPocketedCoinsRef.current.filter(item => {
+        const animationComplete = item.coin.updatePocketAnimation();
+        if (animationComplete) {
+          // animation is complete, remove coin and broadcast
+          removeCoin(item.coin.id);
+          pocketedThisTurnRef.current.push(item.coin);
+          
+          if (socket && roomName) {
+            socket.emit("coinsPocketed", {
+              roomName,
+              pocketedIds: [item.coin.id],
+            });
+          }
+          
+          // remove from animation list
+          return false; 
+        }
+
+        // keep in animation list
+        return true; 
+      });
+      
+      // process striker pocketing animation
+      if (beingPocketedStrikerRef.current) {
+        const animationComplete = strikerRef.current.updatePocketAnimation();
+        if (animationComplete) {
+          // animation complete, process striker pocketing
+          const strikerData = beingPocketedStrikerRef.current;
+          beingPocketedStrikerRef.current = null;
+          
+          // reset striker's pocketing state and radius
+          strikerRef.current.resetPocketingState();
+          
+          // immediately reset striker position to correct baseline for next player
+          const boardX = (canvasRef.current.width - boardSize) / 2;
+          const boardY = (canvasRef.current.height - boardSize) / 2;
+          const bottomBaselineY = boardY + boardSize - baseDistance - baseHeight / 2;
+          const topBaselineY = boardY + baseDistance + baseHeight / 2;
+          
+          // determine next player, turn will switch after striker pocketing
+          const nextPlayer = playerRole === 'creator' ? 'joiner' : 'creator';
+          
+          // position striker for the next player's turn
+          let newY;
+          if (nextPlayer === playerRole) {
+            // next turn is ours, shouldn't happen with striker pocketing, but just in case
+            newY = playerRole === "joiner" ? topBaselineY : bottomBaselineY;
+          } else {
+            // next turn is opponent's
+            newY = playerRole === "joiner" ? bottomBaselineY : topBaselineY;
+          }
+          
+          strikerRef.current.x = boardX + boardSize / 2;
+          strikerRef.current.y = newY;
+          strikerRef.current.velocity = { x: 0, y: 0 };
+          strikerRef.current.isStrikerMoving = false;
+          
+          // sync striker position reset across clients
+          if (socket && roomName) {
+            socket.emit("strikerMove", {
+              roomName,
+              x: strikerRef.current.x,
+              y: strikerRef.current.y,
+              isReset: true
+            });
+            
+            // emit striker animation complete event
+            socket.emit("strikerAnimation", {
+              roomName,
+              type: "animationComplete",
+              x: strikerRef.current.x,
+              y: strikerRef.current.y,
+              playerRole: playerRole
+            });          }
+
+          const currentPlayerData = gameManager.getPlayerData(playerRole);
+          
+          // handle queen reset or debt increment
+          if (currentPlayerData.hasPocketedQueen) {
+            // reset queen to center
+            socket.emit("queenReset", {
+              roomName,
+              playerRole: playerRole,
+            });
+            
+            // reset queen status flags
+            currentPlayerData.hasPocketedQueen = false;
+            currentPlayerData.hasCoveredQueen = false;
+            currentPlayerData.isCoverTurn = false;
+            
+            // emit state updates to other player
+            socket.emit("queenPocketedUpdate", {
+              roomName,
+              playerRole,
+              hasPocketedQueen: false
+            });
+            
+            socket.emit("queenCoveredUpdate", {
+              roomName,
+              playerRole,
+              hasCoveredQueen: false
+            });
+            
+            socket.emit("coverTurnUpdate", {
+              roomName,
+              playerRole,
+              isCoverTurn: false
+            });
+            
+          } else {
+            // normal striker pocketing, increment debt and let server handle automatic payment
+            debtRef.current++;
+
+            // emit debt update, server will handle automatic payment if score > 0
+            socket.emit("updateDebt", {
+              roomName,
+              playerRole,
+              debt: debtRef.current,
+            });
+          }
+
+          if (socket && roomName) {
+            socket.emit("switchTurn", { roomName });
+          }
+          
+          // clear pocketed coins from this turn since striker pocketing always switches turn
+          pocketedThisTurnRef.current = [];
+          
+          // exit early after processing striker pocketing
+          return; 
+        }
+      }
+
+      // start new coin pocketing animations
+      coinsRef.current.forEach((coin) => {
+        if (coin.beingPocketed && !beingPocketedCoinsRef.current.some(item => item.coin.id === coin.id)) {
+          // coin just started being pocketed, add to animation list
+          beingPocketedCoinsRef.current.push({
+            coin: coin,
+            pocket: null // will be set when animation starts
+          });
+        }
+      });
+      
       // check coin pocketing
       const pocketedCoins = [];
       coinsRef.current.forEach((coin) => {
+        // skip coins already being pocketed
+        if (coin.beingPocketed) return;
 
         if (isNearAnyPocket(coin.x, coin.y, pockets)) {
           for (const pocket of pockets) {
@@ -678,6 +808,8 @@ function GameCanvas({
                 
               // only add to pocketed coins if we haven't scored with this coin yet
               if (lastScoredCoinId !== coin.id) {
+                // start pocketing animation instead of immediately removing
+                coin.startPocketing(pocket.x, pocket.y);
                 pocketedCoins.push(coin);
                 lastScoredCoinId = coin.id;
 
@@ -739,30 +871,20 @@ function GameCanvas({
         }
       });
       
-      // remove pocketed coins
-      // add to the turn's pocketed coins list
-      if (pocketedCoins.length > 0) {
-        pocketedCoins.forEach((coin) => {
-          removeCoin(coin.id);
-          pocketedThisTurnRef.current.push(coin);
-        });
-
-        if (socket && roomName) {
-          socket.emit("coinsPocketed", {
-            roomName,
-            pocketedIds: pocketedCoins.map((c) => c.id),
-          });
-        }
-      }
-
+      // remove pocketed coins section is now handled by animation processing above
       // draw updated state
-      drawBoard(ctx);      // check if anything is still moving using consistent threshold
+      drawBoard(ctx);
+      
+      // check if anything is still moving using consistent threshold
       const isAnythingMoving = 
         striker.isMoving(MOVEMENT_THRESHOLD) || 
-        coinsRef.current.some(coin => coin.isMoving(MOVEMENT_THRESHOLD));
+        coinsRef.current.some(coin => coin.isMoving(MOVEMENT_THRESHOLD)) ||
+        beingPocketedCoinsRef.current.length > 0 || // keep animating while coins are being pocketed
+        beingPocketedStrikerRef.current !== null; // keep animating while striker is being pocketed
 
       if (isAnythingMoving) {
-        animationId = requestAnimationFrame(animate);      } else {
+        animationId = requestAnimationFrame(animate);
+      } else {
         setIsAnimating(false);
         setIsFlickerActive(false);
         setCanPlace(true);
@@ -799,9 +921,10 @@ function GameCanvas({
 
           } else {
             // no other coins pocketed with queen, just continue for cover turn
+            // cover turn only
             socket.emit("continueTurn", {
               roomName,
-              continuedTurns: 0, // cover turn only
+              continuedTurns: 0, 
             });
           }
           
@@ -932,9 +1055,16 @@ function GameCanvas({
           }
         }
       }
-    }
-
-    if (isAnimating && isMyTurn) {
+    } 
+    
+    // animation should run if it's my turn OR there are pocketing animations happening
+    const shouldAnimate = isAnimating && (
+      isMyTurn || 
+      beingPocketedCoinsRef.current.length > 0 || 
+      beingPocketedStrikerRef.current !== null
+    );
+    
+    if (shouldAnimate) {
       animationId = requestAnimationFrame(animate);
     }
 
@@ -966,15 +1096,52 @@ function GameCanvas({
     };
 
     socket.on("strikerMove", handleStrikerMove);
+    
+    // handle striker animation sync
+    const handleStrikerAnimation = (data) => {
+      if (data.roomName === roomName && strikerRef.current) {
+        if (data.type === "startPocketing") {
+          // start pocketing animation on the other client
+          strikerRef.current.startPocketing(data.pocketX, data.pocketY);
+          beingPocketedStrikerRef.current = {
+            striker: strikerRef.current,
+            pocket: { x: data.pocketX, y: data.pocketY },
+            playerRole: data.playerRole
+          };
+          
+          // ensure animation loop is running on the remote client too
+          setIsAnimating(true);
+
+        } else if (data.type === "animationComplete") {
+          // complete animation and reset striker position on the other client
+          if (beingPocketedStrikerRef.current) {
+            beingPocketedStrikerRef.current = null;
+          }
+          strikerRef.current.resetPocketingState();
+          strikerRef.current.x = data.x;
+          strikerRef.current.y = data.y;
+          strikerRef.current.velocity = { x: 0, y: 0 };
+          strikerRef.current.isStrikerMoving = false;
+          
+          const ctx = canvasRef.current.getContext("2d");
+          drawBoard(ctx);
+        }
+      }
+    };
+
+    socket.on("strikerAnimation", handleStrikerAnimation);
 
     return () => {
       socket.off("strikerMove", handleStrikerMove);
+      socket.off("strikerAnimation", handleStrikerAnimation);
     };
   }, [socket, roomName]);
 
   // listen for turn switch and reset striker position
   useEffect(() => {
-    if (!socket || !roomName) return;    const handleTurnSwitched = (data) => {
+    if (!socket || !roomName) return;
+    
+    const handleTurnSwitched = (data) => {
       if (data.roomName !== roomName) return;
       
       // check if movement is still happening
@@ -1006,7 +1173,9 @@ function GameCanvas({
 
   // listen for turn continuation and reset striker position
   useEffect(() => {
-    if (!socket || !roomName) return;    const handleTurnContinued = (data) => {
+    if (!socket || !roomName) return;
+    
+    const handleTurnContinued = (data) => {
       if (data.roomName !== roomName) return;
       
       // check if movement is still happening
@@ -1021,7 +1190,7 @@ function GameCanvas({
           continueWith: data.continueWith,
           continuedTurns: data.continuedTurns
         };
-        console.log('Turn continue queued - waiting for movement to stop');
+
       } else {
         // execute immediately if nothing is moving
         executeStrikerReset({
@@ -1167,7 +1336,8 @@ function GameCanvas({
         playerData.hasCoveredQueen = data.hasCoveredQueen;
       }
     };
-    socket.on("queenCoveredUpdate", handleQueenCoveredUpdate);    return () => socket.off("queenCoveredUpdate", handleQueenCoveredUpdate);
+    socket.on("queenCoveredUpdate", handleQueenCoveredUpdate);
+    return () => socket.off("queenCoveredUpdate", handleQueenCoveredUpdate);
   }, [socket, roomName, gameManager]);
 
   // listen for game reset events
@@ -1219,7 +1389,9 @@ function GameCanvas({
         color: "red",
         x: boardX + pocketRadius + coinOffset - 50,
         y: boardY + boardSize - pocketRadius - coinOffset,
-      });      // reset coins array
+      });
+      
+      // reset coins array
       coinsRef.current = [whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin];
       setCoins([whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin]);
       
@@ -1229,9 +1401,13 @@ function GameCanvas({
         white: allCoins.filter(coin => coin.color === 'white').length,
         black: allCoins.filter(coin => coin.color === 'black').length,
         red: allCoins.filter(coin => coin.color === 'red').length
-      };      // reset game state
+      };
+      
+      // reset game state
       pocketedCoinsRef.current.clear();
       pocketedThisTurnRef.current = [];
+      beingPocketedCoinsRef.current = [];
+      beingPocketedStrikerRef.current = null;
       continuedTurnsRef.current = 0;
       debtRef.current = 0;
       
@@ -1247,7 +1423,8 @@ function GameCanvas({
         strikerRef.current.velocity = { x: 0, y: 0 };
         strikerRef.current.isStrikerMoving = false;
       }
-        // redraw board
+      
+      // redraw board
       const ctx = canvasRef.current.getContext("2d");
       drawBoard(ctx);
     };
@@ -1270,12 +1447,14 @@ function GameCanvas({
       canvas.removeEventListener("mousemove", handleMouseMove);
       canvas.removeEventListener("mouseup", handleMouseUp);
       canvas.removeEventListener("mouseleave", handleMouseUp);
-    };  }, [isPlacing, isMyTurn, isFlickerActive, flick]);
+    };
+  }, [isPlacing, isMyTurn, isFlickerActive, flick]);
 
   // cleanup pending actions on component unmount or room change
-  useEffect(() => {
-    return () => {
+  useEffect(() => {    return () => {
       pendingTurnActionRef.current = null;
+      beingPocketedCoinsRef.current = [];
+      beingPocketedStrikerRef.current = null;
     };
   }, [roomName]);
 
@@ -1284,7 +1463,8 @@ function GameCanvas({
       <canvas
         ref={canvasRef}
         width={900}
-        height={900}        style={{
+        height={900}
+        style={{
           backgroundColor: "#fff",
           cursor: isAnimating
             ? "not-allowed"

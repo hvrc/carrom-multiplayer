@@ -22,6 +22,58 @@ export default class Coin {
         this.acceleration = { ...acceleration };
         this.restitution = restitution;
         this.friction = friction;
+        
+        // pocketing animation state
+        this.beingPocketed = false;
+        this.pocketTarget = null;
+        this.pocketAnimationProgress = 0;
+        this.pocketAnimationSpeed = 0.08;
+        this.originalRadius = radius;
+        this.startPocketPosition = { x: 0, y: 0 };
+    }
+    
+    // start pocketing animation
+    startPocketing(pocketX, pocketY) {
+        this.beingPocketed = true;
+        this.pocketTarget = { x: pocketX, y: pocketY };
+        this.pocketAnimationProgress = 0;
+        this.startPocketPosition = { x: this.x, y: this.y };
+        
+        // stop all velocity when pocketing starts
+        this.velocity = { x: 0, y: 0 };
+        this.acceleration = { x: 0, y: 0 };
+    }
+    
+    // update pocketing animation
+    updatePocketAnimation() {
+        if (!this.beingPocketed || !this.pocketTarget) return false;
+        
+        this.pocketAnimationProgress += this.pocketAnimationSpeed;
+        
+        if (this.pocketAnimationProgress >= 1) {
+            this.pocketAnimationProgress = 1;
+        }
+        
+        // easing function for smooth animation
+        const easeProgress = this.pocketAnimationProgress * this.pocketAnimationProgress;
+        
+        // interpolate position
+        this.x = this.startPocketPosition.x + (this.pocketTarget.x - this.startPocketPosition.x) * easeProgress;
+        this.y = this.startPocketPosition.y + (this.pocketTarget.y - this.startPocketPosition.y) * easeProgress;
+        
+        // shrink radius as it gets closer to pocket
+        this.radius = this.originalRadius * (1 - easeProgress * 0.5);
+        
+        // animation complete
+        return this.pocketAnimationProgress >= 1;
+    }
+    
+    // reset pocketing state (for safety, though coins are usually removed)
+    resetPocketingState() {
+        this.beingPocketed = false;
+        this.pocketTarget = null;
+        this.pocketAnimationProgress = 0;
+        this.radius = this.originalRadius;
     }
     
     draw(ctx) {
@@ -40,10 +92,10 @@ export default class Coin {
         
         ctx.stroke();
         ctx.restore();
-    }
-
-    // check if coin is moving based on velocity threshold
+    }    // check if coin is moving based on velocity threshold
     isMoving(threshold = 0.2) {
+        // if being pocketed, consider it as moving until animation completes
+        if (this.beingPocketed) return true;
         return Math.abs(this.velocity.x) > threshold || Math.abs(this.velocity.y) > threshold;
     }
 

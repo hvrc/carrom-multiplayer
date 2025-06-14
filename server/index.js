@@ -373,6 +373,11 @@ io.on('connection', (socket) => {
             socket.to(data.roomName).emit('strikerMove', data);
         });
 
+        // handle striker animation sync
+        socket.on('strikerAnimation', (data) => {
+            socket.to(data.roomName).emit('strikerAnimation', data);
+        });
+
         // handle coin movement sync
         socket.on('coinsMove', (data) => {
             socket.to(data.roomName).emit('coinsMove', data);
