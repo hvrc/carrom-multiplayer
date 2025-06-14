@@ -542,23 +542,59 @@ function GameCanvas({
             striker.x - pocket.x,
             striker.y - pocket.y,
           );
-
+          
           if (strikerDist < pocketRadius - striker.radius / 2) {
             setIsAnimating(false);
             setIsFlickerActive(false);
             setCanPlace(true);
 
-            // increment debt and let server handle automatic payment
-            debtRef.current++;
+            const currentPlayerData = gameManager.getPlayerData(playerRole);
+            
+            // if player has pocketed queen, reset queen instead of paying debt with player coin
+            if (currentPlayerData.hasPocketedQueen) {
+              // reset queen to center
+              socket.emit("queenReset", {
+                roomName,
+                playerRole: playerRole,
+              });
+              
+              // reset queen status flags
+              currentPlayerData.hasPocketedQueen = false;
+              currentPlayerData.hasCoveredQueen = false;
+              currentPlayerData.isCoverTurn = false;
+              
+              // emit state updates to other player
+              socket.emit("queenPocketedUpdate", {
+                roomName,
+                playerRole,
+                hasPocketedQueen: false
+              });
+              
+              socket.emit("queenCoveredUpdate", {
+                roomName,
+                playerRole,
+                hasCoveredQueen: false
+              });
+              
+              socket.emit("coverTurnUpdate", {
+                roomName,
+                playerRole,
+                isCoverTurn: false
+              });
+              
+            } else {
+              // normal striker pocketing, increment debt and let server handle automatic payment
+              debtRef.current++;
 
-            // emit debt update, server will handle automatic payment if score > 0
-            if (socket && roomName) {
+              // emit debt update, server will handle automatic payment if score > 0
               socket.emit("updateDebt", {
                 roomName,
                 playerRole,
                 debt: debtRef.current,
               });
+            }
 
+            if (socket && roomName) {
               socket.emit("switchTurn", { roomName });
             }
             return;
@@ -579,7 +615,8 @@ function GameCanvas({
               if (lastScoredCoinId !== coin.id) {
                 pocketedCoins.push(coin);
                 lastScoredCoinId = coin.id;
-                  // queen pocketed
+
+                // queen pocketed
                 if (coin.color === "red") {
                   const currentPlayerData = gameManager.getPlayerData(playerRole);
 
@@ -615,11 +652,13 @@ function GameCanvas({
                 // determine which player's color matches the coin
                 if (isMyTurn && coin.color !== "red") {
                   let scoringPlayerRole;
+                  
                   if (coin.color === "white") {
                     scoringPlayerRole = "creator";
                   } else if (coin.color === "black") {
                     scoringPlayerRole = "joiner";
                   }
+
                   if (scoringPlayerRole) {
                     socket.emit("updateScore", {
                       roomName,
@@ -642,6 +681,7 @@ function GameCanvas({
           removeCoin(coin.id);
           pocketedThisTurnRef.current.push(coin);
         });
+
         if (socket && roomName) {
           socket.emit("coinsPocketed", {
             roomName,
@@ -683,40 +723,33 @@ function GameCanvas({
           const otherCoinsThisTurn = pocketedThisTurnRef.current.filter( (coin) => coin.color !== "red", );
           const pocketedOwnColorCoins = otherCoinsThisTurn.filter( (coin) => coin.color === playerColor, );
 
-          // clear pocketed coins for the cover turn, queen is already deleted
-          pocketedThisTurnRef.current = [];
-        
-          // add continued turns for non-queen coins
+          // add continued turns for non-queen coins pocketed in the same turn as queen
           if (pocketedOwnColorCoins.length > 0) {
-
-            //
             continuedTurnsRef.current += pocketedOwnColorCoins.length - 1;
-            socket.emit(
-              "continueTurn", {
+            socket.emit("continueTurn", {
               roomName,
               continuedTurns: continuedTurnsRef.current, 
             });
 
-          // no other coins pocketed, just continue for cover turn
-          } 
-          
-          else {
-            continuedTurnsRef.current+=2;
-            socket.emit(
-              "continueTurn", {
+          } else {
+            // no other coins pocketed with queen, just continue for cover turn
+            socket.emit("continueTurn", {
               roomName,
-              continuedTurns: continuedTurnsRef.current,
+              continuedTurns: 0, // cover turn only
             });
           }
+          
+          // clear pocketed coins for the cover turn
+          pocketedThisTurnRef.current = [];
         } 
-        
-        // if this is a cover turn attempt, which means queen was pocketed in the previous turn
+
+        // if this is a cover turn attempt (queen was pocketed in previous turn)
         else if (currentPlayerData.isCoverTurn) {
           const pocketedPlayerColorCoins = pocketedThisTurnRef.current.filter((coin) => coin.color === playerColor, );
           
           // if no coins were pocketed this turn, or no player color coins were pocketed
           if ( pocketedThisTurnRef.current.length === 0 || pocketedPlayerColorCoins.length === 0 ) {
-              // is this is my turn check necessary?
+
             // cover turn failed, reset queen and decrement score
             if (isMyTurn) {
               currentPlayerData.isCoverTurn = false;
@@ -754,8 +787,10 @@ function GameCanvas({
                 increment: -1,
               });
             }
-            socket.emit( "switchTurn",{ roomName });
-          }          else {
+            socket.emit("switchTurn", { roomName });
+
+          } else {
+            // cover turn succeeded
             currentPlayerData.isCoverTurn = false;
             currentPlayerData.hasCoveredQueen = true;
             
@@ -773,38 +808,42 @@ function GameCanvas({
               hasCoveredQueen: true
             });
             
-            if (continuedTurnsRef.current > 0) {
-              continuedTurnsRef.current--;
+            // add continued turns for coins pocketed during successful cover turn
+            const pocketedOwnColorCoins = pocketedThisTurnRef.current.filter(
+              (coin) => coin.color === playerColor,
+            );
+            
+            if (pocketedOwnColorCoins.length > 0) {
+              continuedTurnsRef.current += pocketedOwnColorCoins.length - 1;
               socket.emit("continueTurn", {
                 roomName,
                 continuedTurns: continuedTurnsRef.current,
               });
 
-            // no continued turns left, switch turn
             } else {
+              // no coins pocketed during cover turn, switch turn
               socket.emit("switchTurn", { roomName });
             }
           }
-        
+          
+          // clear pocketed coins for next turn
+          pocketedThisTurnRef.current = [];
+        } 
+
         // regular turn logic, no queen involved
-        } else {
+        else {
           const pocketedOwnColorCoins = pocketedThisTurnRef.current.filter(
             (coin) => coin.color === playerColor,
           );
 
-          if (pocketedOwnColorCoins.length == 0) {
+          if (pocketedOwnColorCoins.length > 0) {
             continuedTurnsRef.current += pocketedOwnColorCoins.length - 1;
             socket.emit("continueTurn", {
               roomName,
               continuedTurns: continuedTurnsRef.current,
             });
 
-            socket.emit("switchTurn", { roomName });
-
-          } 
-
-          // 
-          else {
+          } else {
             socket.emit("switchTurn", { roomName });
           }
           

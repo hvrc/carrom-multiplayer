@@ -73,6 +73,30 @@ class GameManager {
         }
         return null;
     }
+
+    updateQueenPocketed(role, hasPocketedQueen) {
+        const player = this.playerData.find(p => p.role === role);
+        if (player) {
+            player.hasPocketedQueen = hasPocketedQueen;
+        }
+        return player;
+    }
+
+    updateQueenCovered(role, hasCoveredQueen) {
+        const player = this.playerData.find(p => p.role === role);
+        if (player) {
+            player.hasCoveredQueen = hasCoveredQueen;
+        }
+        return player;
+    }
+
+    updateCoverTurn(role, isCoverTurn) {
+        const player = this.playerData.find(p => p.role === role);
+        if (player) {
+            player.isCoverTurn = isCoverTurn;
+        }
+        return player;
+    }
 }
 
 export default GameManager;
