@@ -62,13 +62,15 @@ export default class Striker3D {    constructor(x, y) {
             collided = true;
         }
         return collided;
-    }    isMoving(threshold = 0.2) {
+    }
+    
+    isMoving(threshold = 0.2) {
         // if being pocketed, consider it as moving until animation completes
         if (this.beingPocketed) return true;
         return Math.abs(this.velocity.x) > threshold || Math.abs(this.velocity.y) > threshold;
     }
 
-    update(friction = this.friction, stopThreshold = 0.3, boardX, boardY, boardSize) {
+    update(friction = this.friction, stopThreshold = 0.2, boardX, boardY, boardSize) {
         if (this.isPlacing) return;
         this.x += this.velocity.x;
         this.y += this.velocity.y;
@@ -80,14 +82,16 @@ export default class Striker3D {    constructor(x, y) {
         this.velocity.x *= friction;
         this.velocity.y *= friction;
 
-        if (Math.abs(this.velocity.x) < stopThreshold && Math.abs(this.velocity.y) < stopThreshold) {
+        if (Math.abs(this.velocity.x) <= stopThreshold && Math.abs(this.velocity.y) <= stopThreshold) {
             this.velocity.x = 0;
             this.velocity.y = 0;
             this.isStrikerMoving = false;
         } else {
             this.isStrikerMoving = true;
         }
-    }    // start pocketing animation
+    }
+    
+    // start pocketing animation
     startPocketing(pocketX, pocketY) {
         this.beingPocketed = true;
         this.pocketTarget = { x: pocketX, y: pocketY };

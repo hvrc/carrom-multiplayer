@@ -92,14 +92,12 @@ export default class Coin {
         
         ctx.stroke();
         ctx.restore();
-    }    // check if coin is moving based on velocity threshold
-    isMoving(threshold = 0.2) {
-        // if being pocketed, consider it as moving until animation completes
-        if (this.beingPocketed) return true;
-        return Math.abs(this.velocity.x) > threshold || Math.abs(this.velocity.y) > threshold;
     }
-
-    update() {
+    
+    update(stopThreshold = 0.2) {
+        // Don't update position if being pocketed (animation handles position)
+        if (this.beingPocketed) return;
+        
         this.velocity.x += this.acceleration.x;
         this.velocity.y += this.acceleration.y;
         this.x += this.velocity.x;
@@ -110,5 +108,18 @@ export default class Coin {
         // reset acceleration after each update
         this.acceleration.x = 0;
         this.acceleration.y = 0;
+
+        // Force stop when velocity is below threshold (similar to Striker)
+        if (Math.abs(this.velocity.x) <= stopThreshold && Math.abs(this.velocity.y) <= stopThreshold) {
+            this.velocity.x = 0;
+            this.velocity.y = 0;
+        }
+    }
+
+    // Keep isMoving as a METHOD, not a property
+    isMoving(threshold = 0.2) {
+        // if being pocketed, consider it as moving until animation completes
+        if (this.beingPocketed) return true;
+        return Math.abs(this.velocity.x) > threshold || Math.abs(this.velocity.y) > threshold;
     }
 }
