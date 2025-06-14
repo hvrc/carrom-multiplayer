@@ -42,6 +42,11 @@ export default class Coin {
         ctx.restore();
     }
 
+    // check if coin is moving based on velocity threshold
+    isMoving(threshold = 0.2) {
+        return Math.abs(this.velocity.x) > threshold || Math.abs(this.velocity.y) > threshold;
+    }
+
     update() {
         this.velocity.x += this.acceleration.x;
         this.velocity.y += this.acceleration.y;

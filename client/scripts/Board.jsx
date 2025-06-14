@@ -33,11 +33,16 @@ function GameCanvas({
   // all-time pocketed coins
   // coins pocketed in current turn
   const pocketedCoinsRef = useRef(new Set()); 
-  const pocketedThisTurnRef = useRef([]);
-  // track initial coin counts for game end detection
+  const pocketedThisTurnRef = useRef([]);  // track initial coin counts for game end detection
   const initialCoinCountsRef = useRef({ white: 0, black: 0, red: 0 });
+  // queue turn actions until all movement stops
+  const pendingTurnActionRef = useRef(null);
+  
   const flickMaxLength = 120;
   const flickPower = 0.15;
+  
+  // consistent movement threshold for both striker and coins
+  const MOVEMENT_THRESHOLD = 0.2;
 
   const frameSize = 900;
   const boardSize = 750;
@@ -133,6 +138,54 @@ function GameCanvas({
   function removeCoin(id) {
     coinsRef.current = coinsRef.current.filter((coin) => coin.id !== id);
     setCoins([...coinsRef.current]);
+  }
+
+  // reset striker position when all movement has stopped
+  function executeStrikerReset(actionData) {
+    if (!strikerRef.current) return;
+    
+    const ctx = canvasRef.current?.getContext("2d");
+    if (!ctx) return;
+    
+    const boardX = (ctx.canvas.width - boardSize) / 2;
+    const boardY = (ctx.canvas.height - boardSize) / 2;
+    const bottomBaselineY = boardY + boardSize - baseDistance - baseHeight / 2;
+    const topBaselineY = boardY + baseDistance + baseHeight / 2;
+    
+    let newX = boardX + boardSize / 2;
+    let newY;
+    
+    if (actionData.type === 'turnSwitch') {
+      // reset striker position based on new turn
+      newY = actionData.newTurn === playerRole ? 
+        (playerRole === "joiner" ? topBaselineY : bottomBaselineY) :
+        (playerRole === "joiner" ? bottomBaselineY : topBaselineY);
+        
+    } else if (actionData.type === 'turnContinue') {
+      // reset striker position based on who continues
+      newY = actionData.continueWith === playerRole ?
+        (playerRole === "joiner" ? topBaselineY : bottomBaselineY) :
+        (playerRole === "joiner" ? bottomBaselineY : topBaselineY);
+        
+      // update continued turns count
+      if (actionData.continuedTurns !== undefined) {
+        continuedTurnsRef.current = actionData.continuedTurns;
+      }
+    }
+    
+    // apply the position reset
+    strikerRef.current.x = newX;
+    strikerRef.current.y = newY;
+    strikerRef.current.velocity = { x: 0, y: 0 };
+    strikerRef.current.isStrikerMoving = false;
+    
+    // clear pocketed coins for new turn
+    pocketedThisTurnRef.current = [];
+    
+    // redraw the board
+    drawBoard(ctx);
+    
+    console.log(`Striker reset executed: ${actionData.type}`, { newX, newY });
   }
 
   const drawBoard = (ctx) => {
@@ -497,11 +550,10 @@ function GameCanvas({
     let lastScoredCoinId = null; 
 
     function animate() {
-      if (!strikerRef.current || !isMyTurn) return;
-      const boardX = (canvasRef.current.width - boardSize) / 2;
+      if (!strikerRef.current || !isMyTurn) return;      const boardX = (canvasRef.current.width - boardSize) / 2;
       const boardY = (canvasRef.current.height - boardSize) / 2;
 
-      strikerRef.current.update(0.98, 0.3, boardX, boardY, boardSize);
+      strikerRef.current.update(0.98, MOVEMENT_THRESHOLD, boardX, boardY, boardSize);
       coinsRef.current.forEach((coin) => {
         coin.update();
         handleCoinBorderCollision(coin, boardX, boardY, boardSize);
@@ -704,31 +756,32 @@ function GameCanvas({
       }
 
       // draw updated state
-      drawBoard(ctx);
-
-      // check if anything is still moving
-      const isAnythingMoving =
-        striker.isStrikerMoving ||
-        coinsRef.current.some(
-          (coin) =>
-            Math.abs(coin.velocity.x) > 0.3 || Math.abs(coin.velocity.y) > 0.3,
-        );
+      drawBoard(ctx);      // check if anything is still moving using consistent threshold
+      const isAnythingMoving = 
+        striker.isMoving(MOVEMENT_THRESHOLD) || 
+        coinsRef.current.some(coin => coin.isMoving(MOVEMENT_THRESHOLD));
 
       if (isAnythingMoving) {
-        animationId = requestAnimationFrame(animate);
-
-      } else {
+        animationId = requestAnimationFrame(animate);      } else {
         setIsAnimating(false);
         setIsFlickerActive(false);
         setCanPlace(true);
         
+        // execute any pending turn actions now that all movement has stopped
+        if (pendingTurnActionRef.current) {
+          const pendingAction = pendingTurnActionRef.current;
+          pendingTurnActionRef.current = null; // clear the pending action
+          executeStrikerReset(pendingAction);
+          return; // exit early to avoid game logic interference
+        }
+        
         // reset the last scored coin when animation stops
-        lastScoredCoinId = null; 
+        lastScoredCoinId = null;
         const playerColor = playerRole === "creator" ? "white" : "black";
         const currentPlayerData = gameManager.getPlayerData(playerRole);
 
         // check if queen was pocketed this turn
-        const queenPocketed = pocketedThisTurnRef.current.some((coin) => coin.color === "red",);
+        const queenPocketed = pocketedThisTurnRef.current.some(coin => coin.color === "red",);
 
         // if queen was pocketed this turn
         // count other coins pocketed, excluding queen to determine continued turns
@@ -921,31 +974,27 @@ function GameCanvas({
 
   // listen for turn switch and reset striker position
   useEffect(() => {
-    if (!socket || !roomName) return;
-    const handleTurnSwitched = (data) => {
+    if (!socket || !roomName) return;    const handleTurnSwitched = (data) => {
       if (data.roomName !== roomName) return;
-      const ctx = canvasRef.current?.getContext("2d");
-      const boardX = (ctx?.canvas.width - boardSize) / 2;
-      const boardY = (ctx?.canvas.height - boardSize) / 2;
-      let newX = boardX + boardSize / 2;
-      let newY;
-      const bottomBaselineY = boardY + boardSize - baseDistance - baseHeight / 2;
-      const topBaselineY = boardY + baseDistance + baseHeight / 2;
-
-      if (data.nextTurn === playerRole) {
-        newY = playerRole === "joiner" ? topBaselineY : bottomBaselineY;
+      
+      // check if movement is still happening
+      const areObjectsMoving = 
+        strikerRef.current?.isMoving(MOVEMENT_THRESHOLD) ||
+        coinsRef.current.some(coin => coin.isMoving(MOVEMENT_THRESHOLD));
+      
+      if (areObjectsMoving) {
+        // queue the action until movement stops
+        pendingTurnActionRef.current = {
+          type: 'turnSwitch',
+          newTurn: data.nextTurn
+        };
+        console.log('Turn switch queued - waiting for movement to stop');
       } else {
-        newY = playerRole === "joiner" ? bottomBaselineY : topBaselineY;
-      }
-    
-      // reset pocketed coins tracker at the start of a new turn
-      if (strikerRef.current) {
-        strikerRef.current.x = newX;
-        strikerRef.current.y = newY;
-        strikerRef.current.velocity = { x: 0, y: 0 };
-        strikerRef.current.isStrikerMoving = false;
-        pocketedThisTurnRef.current = [];
-        drawBoard(ctx);
+        // execute immediately if nothing is moving
+        executeStrikerReset({
+          type: 'turnSwitch',
+          newTurn: data.nextTurn
+        });
       }
     };
 
@@ -957,37 +1006,29 @@ function GameCanvas({
 
   // listen for turn continuation and reset striker position
   useEffect(() => {
-    if (!socket || !roomName) return;
-
-    const handleTurnContinued = (data) => {
+    if (!socket || !roomName) return;    const handleTurnContinued = (data) => {
       if (data.roomName !== roomName) return;
-      const ctx = canvasRef.current?.getContext("2d");
-      const boardX = (ctx?.canvas.width - boardSize) / 2;
-      const boardY = (ctx?.canvas.height - boardSize) / 2;
-      let newX = boardX + boardSize / 2;
-      let newY;
-      const bottomBaselineY = boardY + boardSize - baseDistance - baseHeight / 2;
-      const topBaselineY = boardY + baseDistance + baseHeight / 2;
-
-      // update striker position based on whose turn continues
-      if (data.continueWith === playerRole) {
-        newY = playerRole === "joiner" ? topBaselineY : bottomBaselineY;
+      
+      // check if movement is still happening
+      const areObjectsMoving = 
+        strikerRef.current?.isMoving(MOVEMENT_THRESHOLD) ||
+        coinsRef.current.some(coin => coin.isMoving(MOVEMENT_THRESHOLD));
+      
+      if (areObjectsMoving) {
+        // queue the action until movement stops
+        pendingTurnActionRef.current = {
+          type: 'turnContinue',
+          continueWith: data.continueWith,
+          continuedTurns: data.continuedTurns
+        };
+        console.log('Turn continue queued - waiting for movement to stop');
       } else {
-        newY = playerRole === "joiner" ? bottomBaselineY : topBaselineY;
-      }
-
-      if (strikerRef.current) {
-        strikerRef.current.x = newX;
-        strikerRef.current.y = newY;
-        strikerRef.current.velocity = { x: 0, y: 0 };
-        strikerRef.current.isStrikerMoving = false;
-
-        // update continued turns count from server
-        if (data.continuedTurns !== undefined) {
-          continuedTurnsRef.current = data.continuedTurns;
-          //console.log(`Remaining turns: ${continuedTurnsRef.current}`);
-        }
-        drawBoard(ctx);
+        // execute immediately if nothing is moving
+        executeStrikerReset({
+          type: 'turnContinue',
+          continueWith: data.continueWith,
+          continuedTurns: data.continuedTurns
+        });
       }
     };
 
@@ -1131,9 +1172,12 @@ function GameCanvas({
 
   // listen for game reset events
   useEffect(() => {
-    if (!socket || !roomName) return;
-    const handleGameReset = (data) => {
+    if (!socket || !roomName) return;    const handleGameReset = (data) => {
       if (data.roomName !== roomName) return;      
+      
+      // clear any pending turn actions
+      pendingTurnActionRef.current = null;
+      
       // reset all coins to initial positions
       if (!canvasRef.current) return;
       const boardX = (canvasRef.current.width - boardSize) / 2;
@@ -1226,8 +1270,14 @@ function GameCanvas({
       canvas.removeEventListener("mousemove", handleMouseMove);
       canvas.removeEventListener("mouseup", handleMouseUp);
       canvas.removeEventListener("mouseleave", handleMouseUp);
+    };  }, [isPlacing, isMyTurn, isFlickerActive, flick]);
+
+  // cleanup pending actions on component unmount or room change
+  useEffect(() => {
+    return () => {
+      pendingTurnActionRef.current = null;
     };
-  }, [isPlacing, isMyTurn, isFlickerActive, flick]);
+  }, [roomName]);
 
   return (
     <div>

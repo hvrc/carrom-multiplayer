@@ -55,3 +55,5 @@ display pocketed coins
 handling multiple coin pocket or coin and striker pocket, and turn continuation or change
 allow covering queen in the same turn
 4 players
+
+phaser, redis, postgresql, websockets, node

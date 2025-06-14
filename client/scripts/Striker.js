@@ -57,6 +57,10 @@ export default class Striker3D {
         return collided;
     }
 
+    isMoving(threshold = 0.2) {
+        return Math.abs(this.velocity.x) > threshold || Math.abs(this.velocity.y) > threshold;
+    }
+
     update(friction = this.friction, stopThreshold = 0.3, boardX, boardY, boardSize) {
         if (this.isPlacing) return;
         this.x += this.velocity.x;
