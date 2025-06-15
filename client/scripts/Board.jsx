@@ -65,59 +65,60 @@ function GameCanvas({
     if (!canvasRef.current) return;
     const boardX = (canvasRef.current.width - boardSize) / 2;
     const boardY = (canvasRef.current.height - boardSize) / 2;
-    const pocketRadius = pocketDiameter / 2;
-
-    // distance from pocket center to coin
-    const coinOffset = 60; 
-
-    // Position coins near each pocket
-    // Top-left pocket: white coin
-    const whiteCoin1 = new Coin({
-      id: 1,
-      color: "white",
-      x: boardX + pocketRadius + coinOffset,
-      y: boardY + pocketRadius + coinOffset,
-    });
-
-    // Top-right pocket: black coin
-    const blackCoin1 = new Coin({
-      id: 2,
-      color: "black",
-      x: boardX + boardSize - pocketRadius - coinOffset,
-      y: boardY + pocketRadius + coinOffset,
-    });
-
-    // Bottom-left pocket: black coin
-    const blackCoin2 = new Coin({
-      id: 3,
-      color: "black",
-      x: boardX + pocketRadius + coinOffset,
-      y: boardY + boardSize - pocketRadius - coinOffset,
-    });
-
-    // Bottom-right pocket: white coin
-    const whiteCoin2 = new Coin({
-      id: 4,
-      color: "white",
-      x: boardX + boardSize - pocketRadius - coinOffset,
-      y: boardY + boardSize - pocketRadius - coinOffset,
-    });
-
-    // Queen at center
+    
+    // Center position for coin formation
     const centerX = boardX + boardSize / 2;
     const centerY = boardY + boardSize / 2;
-    const queenCoin = new Coin({
-      id: 5,
-      color: "red",
-      x: boardX + pocketRadius + coinOffset - 50,
-      y: boardY + boardSize - pocketRadius - coinOffset,
+    
+    // Configuration for centered coin formation
+    const coinFormation = {
+      centerX: centerX,
+      centerY: centerY,
+      rings: [
+        { count: 6, radius: 32 },   // Inner ring - 6 coins
+        { count: 12, radius: 62 }   // Outer ring - 12 coins
+      ]
+    };
+    
+    const coins = [];
+    let coinId = 1;
+    let colorIndex = 1; // Start with 1 to alternate colors properly
+    
+    // Create rings of coins
+    coinFormation.rings.forEach(ring => {
+      for (let i = 0; i < ring.count; i++) {
+        const angle = i * (2 * Math.PI / ring.count);
+        const x = coinFormation.centerX + ring.radius * Math.cos(angle);
+        const y = coinFormation.centerY + ring.radius * Math.sin(angle);
+        
+        // Alternate between white and black
+        const color = colorIndex % 2 ? 'white' : 'black';
+        
+        coins.push(new Coin({
+          id: coinId++,
+          color: color,
+          x: x,
+          y: y,
+        }));
+        
+        colorIndex++;
+      }
     });
     
-    coinsRef.current = [whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin];
-    setCoins([whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin]);
+    // Add queen at exact center
+    const queenCoin = new Coin({
+      id: coinId++,
+      color: "red",
+      x: coinFormation.centerX,
+      y: coinFormation.centerY,
+    });
+    coins.push(queenCoin);
     
-    // count initial coins by color for game end detection
-    const allCoins = [whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin];
+    coinsRef.current = coins;
+    setCoins(coins);
+    
+    // Update initial coin counts for game end detection
+    const allCoins = coins;
     initialCoinCountsRef.current = {
       white: allCoins.filter(coin => coin.color === 'white').length,
       black: allCoins.filter(coin => coin.color === 'black').length,
@@ -1453,64 +1454,73 @@ function GameCanvas({
   // listen for game reset events
   useEffect(() => {
     if (!socket || !roomName) return;    const handleGameReset = (data) => {
-      if (data.roomName !== roomName) return;      
+      if (data.roomName !== roomName) return;
       
       // clear any pending turn actions
       pendingTurnActionRef.current = null;
       
-      // reset all coins to initial positions
+      // reset all coins to centered formation
       if (!canvasRef.current) return;
       const boardX = (canvasRef.current.width - boardSize) / 2;
       const boardY = (canvasRef.current.height - boardSize) / 2;
-      const pocketRadius = pocketDiameter / 2;
-      const coinOffset = 60;
-
-      // recreate initial coin setup
-      const whiteCoin1 = new Coin({
-        id: 1,
-        color: "white",
-        x: boardX + pocketRadius + coinOffset,
-        y: boardY + pocketRadius + coinOffset,
+      
+      // Center position for coin formation
+      const centerX = boardX + boardSize / 2;
+      const centerY = boardY + boardSize / 2;
+      
+      // Configuration for centered coin formation
+      const coinFormation = {
+        centerX: centerX,
+        centerY: centerY,
+        rings: [
+          { count: 6, radius: 32 },   // Inner ring - 6 coins
+          { count: 12, radius: 62 }   // Outer ring - 12 coins
+        ]
+      };
+      
+      const coins = [];
+      let coinId = 1;
+      let colorIndex = 1;
+      
+      // Create rings of coins
+      coinFormation.rings.forEach(ring => {
+        for (let i = 0; i < ring.count; i++) {
+          const angle = i * (2 * Math.PI / ring.count);
+          const x = coinFormation.centerX + ring.radius * Math.cos(angle);
+          const y = coinFormation.centerY + ring.radius * Math.sin(angle);
+          
+          // Alternate between white and black
+          const color = colorIndex % 2 ? 'white' : 'black';
+          
+          coins.push(new Coin({
+            id: coinId++,
+            color: color,
+            x: x,
+            y: y,
+          }));
+          
+          colorIndex++;
+        }
       });
-
-      const blackCoin1 = new Coin({
-        id: 2,
-        color: "black",
-        x: boardX + boardSize - pocketRadius - coinOffset,
-        y: boardY + pocketRadius + coinOffset,
-      });
-
-      const blackCoin2 = new Coin({
-        id: 3,
-        color: "black",
-        x: boardX + pocketRadius + coinOffset,
-        y: boardY + boardSize - pocketRadius - coinOffset,
-      });
-
-      const whiteCoin2 = new Coin({
-        id: 4,
-        color: "white",
-        x: boardX + boardSize - pocketRadius - coinOffset,
-        y: boardY + boardSize - pocketRadius - coinOffset,
-      });
-
+      
+      // Add queen at exact center
       const queenCoin = new Coin({
-        id: 5,
+        id: coinId++,
         color: "red",
-        x: boardX + pocketRadius + coinOffset - 50,
-        y: boardY + boardSize - pocketRadius - coinOffset,
+        x: coinFormation.centerX,
+        y: coinFormation.centerY,
       });
+      coins.push(queenCoin);
       
-      // reset coins array
-      coinsRef.current = [whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin];
-      setCoins([whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin]);
+      // Reset coins array
+      coinsRef.current = coins;
+      setCoins(coins);
       
-      // reset initial coin counts
-      const allCoins = [whiteCoin1, blackCoin1, blackCoin2, whiteCoin2, queenCoin];
+      // Reset initial coin counts
       initialCoinCountsRef.current = {
-        white: allCoins.filter(coin => coin.color === 'white').length,
-        black: allCoins.filter(coin => coin.color === 'black').length,
-        red: allCoins.filter(coin => coin.color === 'red').length
+        white: coins.filter(coin => coin.color === 'white').length,
+        black: coins.filter(coin => coin.color === 'black').length,
+        red: coins.filter(coin => coin.color === 'red').length
       };
       
       // reset game state
