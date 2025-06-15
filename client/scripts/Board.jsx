@@ -16,10 +16,10 @@ function GameCanvas({
   // track how many continued turns remain
   // track how many coins player owes
   const continuedTurnsRef = useRef(0);
-  const debtRef = useRef(0);
-  const [isPlacing, setisPlacing] = useState(false);
+  const debtRef = useRef(0);  const [isPlacing, setisPlacing] = useState(false);
   const [canPlace, setCanPlace] = useState(true);
   const [isFlickerActive, setIsFlickerActive] = useState(false);
+  const [isStrikerColliding, setIsStrikerColliding] = useState(false);
   const [flick, setFlick] = useState({
     active: false,
     startX: 0,
@@ -195,8 +195,25 @@ function GameCanvas({
     // redraw the board
     drawBoard(ctx);
   }
+  // check if striker is colliding with any coins during placement
+  function checkStrikerCoinCollision() {
+    if (!strikerRef.current) return false;
+    
+    for (const coin of coinsRef.current) {
+      const distance = Math.hypot(
+        strikerRef.current.x - coin.x,
+        strikerRef.current.y - coin.y
+      );
+      const combinedRadius = strikerRef.current.radius + coin.radius;
+      
+      if (distance < combinedRadius) {
+        return true;
+      }
+    }
+    return false;
+  }
 
-  const drawBoard = (ctx) => {
+  const drawBoard = (ctx, overrideCollisionState = null) => {
     ctx.save();
     if (playerRole === "joiner") {
       ctx.translate(ctx.canvas.width / 2, ctx.canvas.height / 2);
@@ -307,26 +324,48 @@ function GameCanvas({
         ctx.lineTo(pos.x + baseWidth - baseRadius, pos.y + baseHeight);
         ctx.stroke();
       }
-    });
-
-    // const centerX = boardX + boardSize / 2;
-    // const centerY = boardY + boardSize / 2;
-    // ctx.beginPath();
-    // ctx.arc(centerX, centerY, centerCircleDiameter / 2, 0, Math.PI * 2);
-    // ctx.stroke();
-
+    });    // draw all coins first
+    coinsRef.current.forEach((coin) => coin.draw(ctx));    // draw striker with appropriate opacity based on collision state
     if (strikerRef.current) {
-      strikerRef.current.draw(ctx);
-    }
-
-    // draw all coins
-    coinsRef.current.forEach((coin) => coin.draw(ctx));
-
-    // draw flick line if active
-    if (isFlickerActive && flick.active) {
+      // use override collision state if provided (for real-time feedback during drag), otherwise use React state
+      const currentCollisionState = overrideCollisionState !== null ? overrideCollisionState : isStrikerColliding;
+      
       ctx.save();
+      
+      // set opacity based on collision state - lower opacity when colliding
+      if (currentCollisionState) {
+        ctx.globalAlpha = 0.4; // 40% opacity when colliding
+      } else {
+        ctx.globalAlpha = 1.0; // full opacity when not colliding
+      }
+      
+      // draw striker with consistent border style
+      ctx.beginPath();
+      ctx.arc(strikerRef.current.x, strikerRef.current.y, strikerRef.current.radius, 0, Math.PI * 2);
       ctx.strokeStyle = "black";
       ctx.lineWidth = 1;
+      ctx.stroke();
+      
+      ctx.restore();
+    }    // draw flick line if active
+    if (isFlickerActive && flick.active) {
+      ctx.save();
+      
+      // use override collision state if provided, otherwise use React state
+      const currentCollisionState = overrideCollisionState !== null ? overrideCollisionState : isStrikerColliding;
+      
+      // set opacity and style based on collision state
+      if (currentCollisionState) {
+        ctx.globalAlpha = 0.4; // reduced opacity when colliding
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 5]); // dashed line to indicate disabled state
+      } else {
+        ctx.globalAlpha = 1.0; // full opacity when not colliding
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 1;
+      }
+      
       ctx.beginPath();
       ctx.moveTo(flick.startX, flick.startY);
 
@@ -346,25 +385,46 @@ function GameCanvas({
     }
     ctx.restore();
   };
-
   // show place button immediately after clicking flick
   const handleFlick = () => {
+    // prevent flicking if striker is colliding with coins
+    if (isStrikerColliding) {
+      // console.log("Cannot flick: striker is overlapping with coins");
+      return;
+    }
+    
     setCanPlace(false);
     setIsFlickerActive(true);
     setTimeout(() => setCanPlace(true), 0);
   };
-
+  
   const handlePlace = () => {
     setCanPlace(true);
     setisPlacing(false);
     setIsFlickerActive(false);
+    setIsStrikerColliding(false); // reset collision state when not placing
     setFlick({ active: false, startX: 0, startY: 0, endX: 0, endY: 0 });
     if (strikerRef.current) strikerRef.current.isPlacing = false;
+    
+    // emit collision state reset to other players
+    if (socket && roomName) {
+      socket.emit("strikerCollisionUpdate", {
+        roomName,
+        playerRole,
+        isColliding: false
+      });
+    }
   };
-
   // flick mouse handlers
   const handleFlickMouseDown = (e) => {
     if (!isMyTurn || !strikerRef.current || !isFlickerActive) return;
+    
+    // prevent flicking if striker is colliding with coins
+    if (isStrikerColliding) {
+      // console.log("Cannot start flick: striker is overlapping with coins");
+      return;
+    }
+    
     const rect = canvasRef.current.getBoundingClientRect();
     let x = e.clientX - rect.left;
     let y = e.clientY - rect.top;
@@ -394,10 +454,16 @@ function GameCanvas({
     }
     setFlick((s) => ({ ...s, endX: x, endY: y }));
   };
-
   const handleFlickMouseUp = (e) => {
     if (!isMyTurn || !strikerRef.current || !isFlickerActive || !flick.active)
       return;
+
+    // prevent execution if striker is colliding with coins
+    if (isStrikerColliding) {
+      // console.log("Cannot execute flick: striker is overlapping with coins");
+      setFlick({ active: false, startX: 0, startY: 0, endX: 0, endY: 0 });
+      return;
+    }
 
     // calculate velocity (opposite direction of pull)
     let dx = flick.startX - flick.endX;
@@ -441,8 +507,7 @@ function GameCanvas({
         strikerRef.current.isPlacing = true;
       }
     }
-  };
-  const handleMouseMove = (e) => {
+  };  const handleMouseMove = (e) => {
     // block all input when animation is active (striker/coins are moving)
     if (isAnimating) return;
     
@@ -456,19 +521,42 @@ function GameCanvas({
         x = canvasRef.current.width - x;
         y = canvasRef.current.height - y;
       }
-      strikerRef.current.x = x;
-      strikerRef.current.y = y;
+      
+      // Only update x position, keep y position fixed
+      // Constrain x position to be between 226 and 667
+      const minX = 226;
+      const maxX = 673;
+      strikerRef.current.x = Math.max(minX, Math.min(maxX, x));
+      // strikerRef.current.y remains unchanged
+      
+      // check for collision in real-time during drag
+      const isCurrentlyColliding = checkStrikerCoinCollision();
+      if (isCurrentlyColliding !== isStrikerColliding) {
+        setIsStrikerColliding(isCurrentlyColliding);
+      }
+
+      // emit collision/invalid state updates to other player
+      if (socket && roomName) {
+        socket.emit("strikerCollisionUpdate", {
+          roomName,
+          playerRole,
+          isColliding: isCurrentlyColliding
+        });
+      }
 
       // sync striker position to other player
       if (socket && roomName) {
-        socket.emit("strikerMove", { roomName, position: { x, y } });
+        socket.emit("strikerMove", {
+          roomName,
+          position: { x: strikerRef.current.x, y: strikerRef.current.y },
+        });
       }
 
       const ctx = canvasRef.current.getContext("2d");
-      drawBoard(ctx);
+      // pass the real-time collision state to drawBoard for immediate visual feedback
+      drawBoard(ctx, isCurrentlyColliding);
     }
-  };
-  const handleMouseUp = (e) => {
+  };  const handleMouseUp = (e) => {
     // block all input when animation is active (striker/coins are moving)
     if (isAnimating) return;
     
@@ -477,6 +565,16 @@ function GameCanvas({
     } else if (isPlacing) {
       setisPlacing(false);
       if (strikerRef.current) strikerRef.current.isPlacing = false;
+      
+      // emit final collision state when placement ends
+      if (socket && roomName) {
+        const finalCollisionState = checkStrikerCoinCollision();
+        socket.emit("strikerCollisionUpdate", {
+          roomName,
+          playerRole,
+          isColliding: finalCollisionState
+        });
+      }
     }
   };
 
@@ -1080,8 +1178,7 @@ function GameCanvas({
     // reset event versus regular move event
     const handleStrikerMove = (data) => {
       if (data.roomName === roomName && strikerRef.current) {
-        
-        // if this is a reset event from server, update striker's state
+          // if this is a reset event from server, update striker's state
         if (data.isReset) {
           strikerRef.current.x = data.x;
           strikerRef.current.y = data.y;
@@ -1090,6 +1187,7 @@ function GameCanvas({
         } else if (data.position) {
           strikerRef.current.updatePosition(data.position.x, data.position.y);
         }
+        
         const ctx = canvasRef.current.getContext("2d");
         drawBoard(ctx);
       }
@@ -1097,6 +1195,20 @@ function GameCanvas({
 
     socket.on("strikerMove", handleStrikerMove);
     
+    // listen for striker collision state updates from other player
+    const handleStrikerCollisionUpdate = (data) => {
+      if (data.roomName === roomName) {
+        // update collision state based on remote player's collision check
+        setIsStrikerColliding(data.isColliding);
+        
+        // redraw board immediately with updated collision state
+        const ctx = canvasRef.current.getContext("2d");
+        drawBoard(ctx);
+      }
+    };
+
+    socket.on("strikerCollisionUpdate", handleStrikerCollisionUpdate);
+
     // handle striker animation sync
     const handleStrikerAnimation = (data) => {
       if (data.roomName === roomName && strikerRef.current) {
@@ -1129,10 +1241,9 @@ function GameCanvas({
       }
     };
 
-    socket.on("strikerAnimation", handleStrikerAnimation);
-
-    return () => {
+    socket.on("strikerAnimation", handleStrikerAnimation);    return () => {
       socket.off("strikerMove", handleStrikerMove);
+      socket.off("strikerCollisionUpdate", handleStrikerCollisionUpdate);
       socket.off("strikerAnimation", handleStrikerAnimation);
     };
   }, [socket, roomName]);
@@ -1155,7 +1266,6 @@ function GameCanvas({
           type: 'turnSwitch',
           newTurn: data.nextTurn
         };
-        console.log('Turn switch queued - waiting for movement to stop');
       } else {
         // execute immediately if nothing is moving
         executeStrikerReset({
@@ -1432,6 +1542,22 @@ function GameCanvas({
     socket.on("gameReset", handleGameReset);
     return () => socket.off("gameReset", handleGameReset);
   }, [socket, roomName, gameManager]);
+  // continuously check for striker-coin collisions
+  useEffect(() => {
+    if (!strikerRef.current) return;
+    
+    const checkCollisions = () => {
+      const isCurrentlyColliding = checkStrikerCoinCollision();
+      if (isCurrentlyColliding !== isStrikerColliding) {
+        setIsStrikerColliding(isCurrentlyColliding);
+      }
+    };
+    
+    // check collisions on every animation frame
+    const intervalId = setInterval(checkCollisions, 16); // ~60fps
+    
+    return () => clearInterval(intervalId);
+  }, [isStrikerColliding, coins]); // re-run when coins change
 
   // separate useEffect for canvas event listeners
   useEffect(() => {

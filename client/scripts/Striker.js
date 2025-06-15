@@ -19,10 +19,14 @@ export default class Striker3D {    constructor(x, y) {
         this.startPocketPosition = { x: 0, y: 0 };
     }
 
-    draw(ctx) {
+    draw(ctx, strokeStyle = "black", lineWidth = 1) {
+        ctx.save();
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = strokeStyle;
+        ctx.lineWidth = lineWidth;
         ctx.stroke();
+        ctx.restore();
     }
 
     isPointInside(x, y) {

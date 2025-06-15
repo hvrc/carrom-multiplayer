@@ -26,22 +26,18 @@ prioritize resetting queen to center if striker pocketed after
 realistic dimensions
 slingshot double click bug
 animation for pocketing coins, striker
-
-handle positioning of muliple coin reset to the center
 no overlapping
+
 better physics
 starting grid
 assign more points for queen
-room scoreboard
-refresh, wait time
 better room control
+console logs to html, more ui
 client optimization
 server optimization
-console logs to html, more ui
 
-striker position reset animation
-coins stacked on frame
-coins animated moving to frame
+room scoreboard
+refresh, wait time
 
 ui
 board, coin designs
@@ -57,6 +53,10 @@ slider to rotate starting grid
 
 display pocketed coins
 handling multiple coin pocket or coin and striker pocket, and turn continuation or change
+handle positioning of muliple coin reset to the center
+striker position reset animation
+coins stacked on frame
+coins animated moving to frame
 allow covering queen in the same turn
 4 players
 
