@@ -8,8 +8,8 @@ export default class Coin {
         y = 0,
         velocity = { x: 0, y: 0 },
         acceleration = { x: 0, y: 0 },
-        restitution = 0.745,
-        friction = 0.952
+        restitution = 0.5,
+        friction = 0.7
     }) 
     {
         this.id = id;
