@@ -1,6 +1,6 @@
 import { io } from 'socket.io-client';
 
-// generate or reuse a unique client id for each browser session
+// generate or reuse a unique client id for each browser session, which is each client
 const generateClientId = () => {
     let clientId = sessionStorage.getItem('clientId');
     if (!clientId) {
@@ -13,7 +13,7 @@ const generateClientId = () => {
     return clientId;
 };
 
-// socket.io client...
+// socket.io client... connects to server with client id attached
 const socket = io('http://localhost:3000', {
     autoConnect: false,
     reconnection: true,

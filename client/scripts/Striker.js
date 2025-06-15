@@ -1,6 +1,7 @@
-export default class Striker3D {    constructor(x, y) {
+export default class Striker3D {
+    constructor(x, y) {
         this.radius = 21;
-        this.strikerMass = 15;
+        this.strikerMass = 1;
         this.x = x;
         this.y = y;
         this.velocity = { x: 0, y: 0 };
@@ -47,6 +48,7 @@ export default class Striker3D {    constructor(x, y) {
         const minY = boardY + this.radius;
         const maxY = boardY + boardSize - this.radius;
         let collided = false;
+
         if (this.x < minX) {
             this.x = minX;
             this.velocity.x = Math.abs(this.velocity.x) * this.restitution;
@@ -56,6 +58,7 @@ export default class Striker3D {    constructor(x, y) {
             this.velocity.x = -Math.abs(this.velocity.x) * this.restitution;
             collided = true;
         }
+
         if (this.y < minY) {
             this.y = minY;
             this.velocity.y = Math.abs(this.velocity.y) * this.restitution;
@@ -107,7 +110,8 @@ export default class Striker3D {    constructor(x, y) {
         this.acceleration = { x: 0, y: 0 };
         this.isStrikerMoving = false;
     }
-      // update pocketing animation
+    
+    // update pocketing animation
     updatePocketAnimation() {
         if (!this.beingPocketed || !this.pocketTarget) return false;
         
@@ -123,7 +127,8 @@ export default class Striker3D {    constructor(x, y) {
         // interpolate position
         this.x = this.startPocketPosition.x + (this.pocketTarget.x - this.startPocketPosition.x) * easeProgress;
         this.y = this.startPocketPosition.y + (this.pocketTarget.y - this.startPocketPosition.y) * easeProgress;
-          // shrink radius as it gets closer to pocket
+        
+        // shrink radius as it gets closer to pocket
         this.radius = this.originalRadius * (1 - easeProgress * 0.5);
         
         // animation complete

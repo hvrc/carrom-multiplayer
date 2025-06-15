@@ -27,19 +27,29 @@ realistic dimensions
 slingshot double click bug
 animation for pocketing coins, striker
 no overlapping
+starting grid
 
 better physics
-starting grid
-assign more points for queen
-better room control
-console logs to html, more ui
+fix slow speed on joiner window
 client optimization
 server optimization
 
-room scoreboard
-refresh, wait time
+seperate server index logic?
+longer heartbeats in server?
+refresh and retry bug
+player should be able to refresh while in room
+player should be able to leave room, and same/new player should be able to join
+if both players leave, room should be deleted
+figure out what room is doing
+intial coin counting should be dynamic
+constants file
+refact board.jsx
+remove unused variables and functions
 
-ui
+console logs to html, more ui
+assign more points for queen
+room scoreboard
+
 board, coin designs
 mobile controls
 sound, synth idea

@@ -98,7 +98,9 @@ class GameManager {
             player.isCoverTurn = isCoverTurn;
         }
         return player;
-    }    resetGame() {
+    }
+    
+    resetGame() {
         // reset all player data to initial state
         this.whoseTurn = 'creator';
         
@@ -116,6 +118,7 @@ class GameManager {
             // turn management
             player.isTurn = player.role === this.whoseTurn;
         });
+
         return this.playerData;
     }
 
@@ -124,9 +127,9 @@ class GameManager {
         // this would be called during initialization to count how many coins were created
         // for now we'll hardcode based on current setup, but this could be made dynamic
         return {
-            white: 2,
-            black: 2,
-            red: 1 // queen
+            white: 9,
+            black: 9,
+            red: 1
         };
     }
 }

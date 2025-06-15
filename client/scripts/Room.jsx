@@ -4,6 +4,8 @@ import socket from './socket.js';
 import GameManager from './GameManager.js';
 import Board from './Board.jsx';
 
+// information table
+
 function GameInfoTable({ roomName, creator, joiner, gameManager }) {
     const creatorData = gameManager.getPlayerData('creator');
     const joinerData = gameManager.getPlayerData('joiner');
@@ -67,10 +69,16 @@ function GameInfoTable({ roomName, creator, joiner, gameManager }) {
 }
 
 export default function Room() {
+
+    // i dont know why these room functions are here or how to categorize them
+    // are they required for the game info table?
+    
     const { roomName } = useParams();
     const navigate = useNavigate();
     const [roomData, setRoomData] = useState(null);
-    const [tableRefresh, setTableRefresh] = useState(0); // force table re-render
+
+    // force table re render
+    const [tableRefresh, setTableRefresh] = useState(0);
     const gameManagerRef = useRef(null);
 
     // ?
@@ -99,27 +107,29 @@ export default function Room() {
         }
 
         // update GameManager when room data changes
-        const handleRoomUpdate = (data) => {
-            if (data.roomName === roomName && gameManagerRef.current) {
-                // Update debts in GameManager if present
-                if (data.debts) {
-                    gameManagerRef.current.playerData[0].debt = data.debts.creator;
-                    gameManagerRef.current.playerData[1].debt = data.debts.joiner;
-                }
-                // Update roomData to reflect new debts
-                setRoomData(prev => ({
-                    ...prev,
-                    creator: {
-                        ...prev.creator,
-                        debt: data.debts ? data.debts.creator : prev.creator.debt
-                    },
-                    joiner: prev.joiner ? {
-                        ...prev.joiner,
-                        debt: data.debts ? data.debts.joiner : prev.joiner.debt
-                    } : null
-                }));
-            }
-        };
+        // const handleRoomUpdate = (data) => {
+        //     if (data.roomName === roomName && gameManagerRef.current) {
+
+        //         // update debts in GameManager if present
+        //         if (data.debts) {
+        //             gameManagerRef.current.playerData[0].debt = data.debts.creator;
+        //             gameManagerRef.current.playerData[1].debt = data.debts.joiner;
+        //         }
+
+        //         // update roomData to reflect new debts
+        //         setRoomData(prev => ({
+        //             ...prev,
+        //             creator: {
+        //                 ...prev.creator,
+        //                 debt: data.debts ? data.debts.creator : prev.creator.debt
+        //             },
+        //             joiner: prev.joiner ? {
+        //                 ...prev.joiner,
+        //                 debt: data.debts ? data.debts.joiner : prev.joiner.debt
+        //             } : null
+        //         }));
+        //     }
+        // };
         
         if (storedRoomName === roomName && username && playerRole) {
             socket.emit('rejoinRoom', { roomName, username, clientId, playerRole });
@@ -131,12 +141,14 @@ export default function Room() {
             socket.emit('requestRoomData', { roomName });
         });
 
-        // Ensure roomData is set on initial fetch
+        // what is this room update function doing?
+
+        // ensure roomData is set on initial fetch
         socket.on('roomUpdate', (data) => {
             if (data.roomName === roomName) {
                 setRoomData(data);
 
-                // Always update GameManager/playerData for debt/score changes
+                // always update GameManager/playerData for debt/score changes
                 if (gameManagerRef.current) {
                     if (data.debts) {
                         gameManagerRef.current.playerData[0].debt = data.debts.creator;
@@ -172,12 +184,18 @@ export default function Room() {
         };
     }, [roomName, navigate]);
 
-    // listen for debt/score updates from server
+    // whats the difference between
+    // handleDebtScoreUpdate, handleScoreUpdate, 
+    // handleDebtUpdate, handleDebtPaid?
+
+    // listen for debt, score updates from server
+
     useEffect(() => {
         if (!socket || !roomName) return;
         const handleDebtScoreUpdate = (data) => {
             if (data.roomName === roomName && gameManagerRef.current) {
-                // Update local GameManager state
+
+                // update local GameManager state
                 const gm = gameManagerRef.current;
                 ['creator', 'joiner'].forEach(role => {
                     const p = gm.getPlayerData(role);
@@ -186,7 +204,9 @@ export default function Room() {
                         p.score = data.score[role];
                     }
                 });
-                setRoomData(rd => ({ ...rd })); // force re-render
+
+                // force re-render
+                setRoomData(rd => ({ ...rd }));
             }
         };
         socket.on('debtScoreUpdate', handleDebtScoreUpdate);
@@ -198,15 +218,16 @@ export default function Room() {
     // listen for score updates from server
     useEffect(() => {
         if (!socket || !roomName) return;
-          const handleScoreUpdate = (data) => {
+        const handleScoreUpdate = (data) => {
             if (!gameManagerRef.current || data.roomName !== roomName) return;
-            
+
             const { scores } = data;
-            // Update both players' scores
+
+            // update both players' scores
             gameManagerRef.current.updateScore('creator', scores.creator);
             gameManagerRef.current.updateScore('joiner', scores.joiner);
-            
-            // Update roomData to reflect the new scores
+
+            // update roomData to reflect the new scores
             setRoomData(prev => ({
                 ...prev,
                 creator: {
@@ -225,6 +246,36 @@ export default function Room() {
         return () => {
             socket.off('scoreUpdate');
         };
+
+    }, [roomName, socket]);
+
+    // listen for debt updates from server
+    useEffect(() => {
+        if (!socket || !roomName) return;
+
+        const handleDebtUpdate = (data) => {
+            if (data.roomName !== roomName || !gameManagerRef.current) return;
+            
+            // console.log(`Debt update received: Player ${data.playerRole} debt is now ${data.debt}`);
+            
+            // Update GameManager state
+            gameManagerRef.current.updateDebt(data.playerRole, data.debt);
+            
+            // Update roomData to reflect the new debt
+            setRoomData(prev => ({
+                ...prev,
+                [data.playerRole]: {
+                    ...prev[data.playerRole],
+                    debt: data.debt
+                }
+            }));
+        };
+
+        socket.on('debtUpdate', handleDebtUpdate);
+        
+        return () => {
+            socket.off('debtUpdate');
+        };
     }, [roomName, socket]);
 
     // listen for debt payment events from server
@@ -234,11 +285,11 @@ export default function Room() {
         const handleDebtPaid = (data) => {
             if (data.roomName !== roomName || !gameManagerRef.current) return;
             
-            // Update GameManager state
+            // update GameManager state
             gameManagerRef.current.updateScore(data.playerRole, data.newScore);
             gameManagerRef.current.updateDebt(data.playerRole, data.newDebt);
             
-            // Update roomData to reflect the changes
+            // update roomData to reflect the changes
             setRoomData(prev => ({
                 ...prev,
                 [data.playerRole]: {
@@ -294,35 +345,6 @@ export default function Room() {
         };
     }, [roomName, socket]);
 
-    // listen for debt updates from server
-    useEffect(() => {
-        if (!socket || !roomName) return;
-
-        const handleDebtUpdate = (data) => {
-            if (data.roomName !== roomName || !gameManagerRef.current) return;
-            
-            console.log(`Debt update received: Player ${data.playerRole} debt is now ${data.debt}`);
-            
-            // Update GameManager state
-            gameManagerRef.current.updateDebt(data.playerRole, data.debt);
-            
-            // Update roomData to reflect the new debt
-            setRoomData(prev => ({
-                ...prev,
-                [data.playerRole]: {
-                    ...prev[data.playerRole],
-                    debt: data.debt
-                }
-            }));
-        };
-
-        socket.on('debtUpdate', handleDebtUpdate);
-        
-        return () => {
-            socket.off('debtUpdate');
-        };
-    }, [roomName, socket]);
-
     // handle leave room event
     const handleLeaveRoom = () => {
         const clientId = sessionStorage.getItem('clientId');
@@ -354,6 +376,7 @@ export default function Room() {
     const currentUsername = localStorage.getItem('username');
     const playerRole = localStorage.getItem('playerRole');
     const isMyTurn = roomData.whoseTurn === playerRole;
+
     return (
         <div>
             <Board 
@@ -372,7 +395,7 @@ export default function Room() {
                 gameManager={gameManager} 
                 roomData={roomData}
             /> <br />
-            {isMyTurn && <button onClick={handleSwitchTurn}>Switch Turn</button>} <br/> <br/>
+            { isMyTurn && <button onClick={handleSwitchTurn}>Switch Turn</button> } <br/> <br/>
             <button onClick={handleLeaveRoom}>Leave Room</button> <br/> <br/>
         </div>
     );

@@ -16,6 +16,9 @@ const io = new Server(httpServer, {
         methods: ['GET', 'POST']
     }
 });
+
+// rooms
+
 const PORT = 3000;
 const rooms = new Map();
 const lastHeartbeat = new Map();
@@ -252,6 +255,8 @@ io.on('connection', (socket) => {
         }
     });
 
+    // handle switching turns
+
     socket.on('switchTurn', ({ roomName, clientId: incomingClientId }) => {
         if (!rooms.has(roomName)) {
             socket.emit('error', 'Room does not exist');
@@ -282,6 +287,8 @@ io.on('connection', (socket) => {
             nextTurn: room.whoseTurn
         });
     });
+
+    // handle continuing turn
 
     socket.on('continueTurn', ({ roomName, continuedTurns }) => {
         if (!rooms.has(roomName)) {
@@ -331,6 +338,7 @@ io.on('connection', (socket) => {
             const room = rooms.get(roomName);
             if (room.creator && room.creator.clientId === incomingClientId) {
                 if (room.joiner) {
+
                     // promote joiner to creator
                     room.creator = { username: room.joiner.username, clientId: room.joiner.clientId };
                     room.joiner = null;
@@ -368,6 +376,8 @@ io.on('connection', (socket) => {
             cleanupEmptyRooms();
         });
 
+        // coin and striker movement
+
         // handle striker movement sync
         socket.on('strikerMove', (data) => {
             socket.to(data.roomName).emit('strikerMove', data);
@@ -387,6 +397,8 @@ io.on('connection', (socket) => {
         socket.on('coinsPocketed', (data) => {
             socket.to(data.roomName).emit('coinsPocketed', data);
         });
+
+        // scoring and debt
         
         // handle striker pocketing and debt increment
         socket.on('strikerPocketed', (data) => {
@@ -408,7 +420,8 @@ io.on('connection', (socket) => {
                 debt
             });
         });
-          // handle score updates when coins are pocketed
+
+        // handle score updates when coins are pocketed
         socket.on('updateScore', (data) => {
             const { roomName, playerRole, coinColor, increment } = data;
             if (!rooms.has(roomName)) return;
@@ -486,7 +499,8 @@ io.on('connection', (socket) => {
                     scores: room.scores
                 });
                 
-                return; // early return to avoid double processing
+                // early return to avoid double processing
+                return;
             }
             
             // normal scoring logic for all other cases (opponent's coins, queen, etc.)
@@ -687,7 +701,8 @@ io.on('connection', (socket) => {
             io.to(roomName).emit('queenCoveredUpdate', {
                 roomName,
                 playerRole,
-                hasCoveredQueen            });
+                hasCoveredQueen
+            });
         });
 
         // handle game reset events

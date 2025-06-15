@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import socket from './socket.js';
 
 export default function MainMenu() {
+
+    // socket.io handling room creation and joining
+
     // state variables
     // navigate is used to navigate to the room
     // use effect checks for saved room, clears storage if none, and cleans up socket listeners on exit
@@ -12,6 +15,7 @@ export default function MainMenu() {
     const [createRoomName, setCreateRoomName] = useState('');
     const [error, setError] = useState('');
     const navigate = useNavigate();
+
     useEffect(() => {
         const roomName = localStorage.getItem('roomName');
         if (!roomName) { localStorage.clear(); }
@@ -32,12 +36,15 @@ export default function MainMenu() {
             setError('Please enter a username and room name');
             return;
         }
+
         if (!socket.connected) { socket.connect(); }
         const clientId = sessionStorage.getItem('clientId');
+
         if (!clientId) {
             setError('Refresh and retry');
             return;
         }
+
         socket.emit('createRoom', { roomName: createRoomName, username: createUsername, clientId });
 
         const handlePlayerJoined = (data) => {
@@ -68,12 +75,15 @@ export default function MainMenu() {
             setError('Please enter a username and room name');
             return;
         }
+
         if (!socket.connected) { socket.connect(); }
         const clientId = sessionStorage.getItem('clientId');
+
         if (!clientId) {
             setError('Refresh and retry');
             return;
         }
+        
         socket.emit('joinRoom', { roomName: joinRoomName, username: joinUsername, clientId });
         
         const handlePlayerJoined = (data) => {

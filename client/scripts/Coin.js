@@ -3,7 +3,7 @@ export default class Coin {
         id,
         color = 'white',
         radius = 15,
-        coinMass = 5,
+        coinMass = 1,
         x = 0,
         y = 0,
         velocity = { x: 0, y: 0 },
@@ -95,7 +95,7 @@ export default class Coin {
     }
     
     update(stopThreshold = 0.2) {
-        // Don't update position if being pocketed (animation handles position)
+        // don't update position if being pocketed, animation handles position
         if (this.beingPocketed) return;
         
         this.velocity.x += this.acceleration.x;
@@ -109,7 +109,7 @@ export default class Coin {
         this.acceleration.x = 0;
         this.acceleration.y = 0;
 
-        // Force stop when velocity is below threshold (similar to Striker)
+        // force stop when velocity is below threshold (similar to Striker)
         if (Math.abs(this.velocity.x) <= stopThreshold && Math.abs(this.velocity.y) <= stopThreshold) {
             this.velocity.x = 0;
             this.velocity.y = 0;
