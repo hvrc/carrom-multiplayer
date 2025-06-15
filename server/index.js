@@ -408,8 +408,7 @@ io.on('connection', (socket) => {
                 debt
             });
         });
-        
-        // handle score updates when coins are pocketed
+          // handle score updates when coins are pocketed
         socket.on('updateScore', (data) => {
             const { roomName, playerRole, coinColor, increment } = data;
             if (!rooms.has(roomName)) return;
@@ -418,8 +417,79 @@ io.on('connection', (socket) => {
             if (!room.scores) {
                 room.scores = { creator: 0, joiner: 0 };
             }
+            if (!room.debts) {
+                room.debts = { creator: 0, joiner: 0 };
+            }
 
-            // use increment value if provided, otherwise default to +1
+            // check if player pocketed their own color coin
+            const playerColor = playerRole === 'creator' ? 'white' : 'black';
+            if (coinColor === playerColor) {
+                const currentDebt = room.debts[playerRole] || 0;
+                const currentScore = room.scores[playerRole] || 0;
+                console.log(`Player ${playerRole} pocketed their own ${coinColor} coin. Current debt: ${currentDebt}`);
+                
+                // if player has debt > 0 and pockets their own color coin
+                if (currentDebt > 0) {
+                    // decrement debt by 1
+                    room.debts[playerRole] = currentDebt - 1;
+                    
+                    // DON'T change the score - it stays the same due to debt payment
+                    // room.scores[playerRole] remains unchanged
+                    
+                    console.log(`Player ${playerRole} debt reduced from ${currentDebt} to ${room.debts[playerRole]} and coin will be returned to center`);
+                    
+                    // emit debt update immediately
+                    io.to(roomName).emit('debtUpdate', {
+                        roomName,
+                        playerRole,
+                        debt: room.debts[playerRole]
+                    });
+                    
+                    // delay the coin addition until after animation completes (2 seconds)
+                    setTimeout(() => {
+                        io.to(roomName).emit('debtPaid', {
+                            roomName,
+                            playerRole,
+                            newScore: room.scores[playerRole],
+                            newDebt: room.debts[playerRole],
+                            coinColor: playerColor,
+                            coinId: Date.now() + Math.random()
+                        });
+                    }, 2000);
+                } else {
+                    // no debt, increment score normally
+                    const scoreChange = increment !== undefined ? increment : 1;
+                    room.scores[playerRole] = currentScore + scoreChange;
+                }
+                
+                // emit score update to sync scores
+                io.to(roomName).emit('scoreUpdate', {
+                    roomName: roomName,
+                    scores: room.scores
+                });
+                
+                // emit room update to sync everything in UI
+                io.to(roomName).emit('roomUpdate', {
+                    roomName,
+                    creator: { 
+                        username: room.creator.username,
+                        debt: room.debts.creator,
+                        score: room.scores.creator
+                    },
+                    joiner: room.joiner ? { 
+                        username: room.joiner.username,
+                        debt: room.debts.joiner,
+                        score: room.scores.joiner
+                    } : null,
+                    whoseTurn: room.whoseTurn,
+                    debts: room.debts,
+                    scores: room.scores
+                });
+                
+                return; // early return to avoid double processing
+            }
+            
+            // normal scoring logic for all other cases (opponent's coins, queen, etc.)
             const scoreChange = increment !== undefined ? increment : 1;
             room.scores[playerRole] = (room.scores[playerRole] || 0) + scoreChange;
             
@@ -476,7 +546,7 @@ io.on('connection', (socket) => {
             } else {
 
                 // if can't pay debt, increment debt as before
-                room.debts[playerRole] = debt;
+                room.debts[playerRole]++;
 
                 // broadcast updated room state including debts
                 io.to(roomName).emit('roomUpdate', {

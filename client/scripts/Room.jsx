@@ -294,6 +294,35 @@ export default function Room() {
         };
     }, [roomName, socket]);
 
+    // listen for debt updates from server
+    useEffect(() => {
+        if (!socket || !roomName) return;
+
+        const handleDebtUpdate = (data) => {
+            if (data.roomName !== roomName || !gameManagerRef.current) return;
+            
+            console.log(`Debt update received: Player ${data.playerRole} debt is now ${data.debt}`);
+            
+            // Update GameManager state
+            gameManagerRef.current.updateDebt(data.playerRole, data.debt);
+            
+            // Update roomData to reflect the new debt
+            setRoomData(prev => ({
+                ...prev,
+                [data.playerRole]: {
+                    ...prev[data.playerRole],
+                    debt: data.debt
+                }
+            }));
+        };
+
+        socket.on('debtUpdate', handleDebtUpdate);
+        
+        return () => {
+            socket.off('debtUpdate');
+        };
+    }, [roomName, socket]);
+
     // handle leave room event
     const handleLeaveRoom = () => {
         const clientId = sessionStorage.getItem('clientId');
