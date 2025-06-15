@@ -7,8 +7,8 @@ export default class Striker3D {    constructor(x, y) {
         this.acceleration = { x: 0, y: 0 };
         this.isPlacing = false;
         this.isStrikerMoving = false;
-        this.restitution = 0.75;
-        this.friction = 0.95;
+        this.restitution = 0.745;
+        this.friction = 0.952
         
         // pocketing animation state
         this.beingPocketed = false;
