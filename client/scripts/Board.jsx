@@ -45,7 +45,7 @@ function GameCanvas({
   const beingPocketedStrikerRef = useRef(null);
   
   const flickMaxLength = 120;
-  const flickPower = 0.15;
+  const flickPower = 0.3;
   
   // consistent movement threshold for both striker and coins
   const MOVEMENT_THRESHOLD = 0.2;
