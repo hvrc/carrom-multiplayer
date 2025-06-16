@@ -5,10 +5,13 @@ import Coin from './Coin.js';
  * Pocket utility functions for carrom game
  */
 export class Pocket {
+    // Pocket dimensions
+    static POCKET_DIAMETER = 45;
+    
     /**
      * Check if an object is near any pocket
      * @param {number} x - X coordinate of the object
-     * @param {number} y - Y coordinate of the object
+     * @param {number} y - Y Coordinate of the object
      * @param {Array} pockets - Array of pocket objects with x, y coordinates
      * @param {number} threshold - Distance threshold (default: 60)
      * @returns {boolean} - True if object is near any pocket
@@ -95,6 +98,17 @@ export class Pocket {
         pocketedCoinsRef.current.delete(id);
         
         return newCoin;
+    }
+
+    /**
+     * Remove a coin by id
+     * @param {number} id - Coin ID to remove
+     * @param {Object} coinsRef - Coins reference
+     * @param {Function} setCoins - Set coins function
+     */
+    static removeCoin(id, coinsRef, setCoins) {
+        coinsRef.current = coinsRef.current.filter((coin) => coin.id !== id);
+        setCoins([...coinsRef.current]);
     }
 
     /**

@@ -52,11 +52,8 @@ function GameCanvas({
     const flickPower = 0.4;
 
     // consistent movement threshold for both striker and coins
-    const MOVEMENT_THRESHOLD = 0.21;
-
-    const frameSize = 900;
+    const MOVEMENT_THRESHOLD = 0.21;    const frameSize = 900;
     const boardSize = 750;
-    const pocketDiameter = 45;
     const baseDistance = 102;
     const baseHeight = 32;
     const baseWidth = 470;
@@ -85,12 +82,6 @@ function GameCanvas({
             black: allCoins.filter((coin) => coin.color === "black").length,
             red: allCoins.filter((coin) => coin.color === "red").length,        };
     }, []);
-
-    // remove a coin by id
-    function removeCoin(id) {
-        coinsRef.current = coinsRef.current.filter((coin) => coin.id !== id);
-        setCoins([...coinsRef.current]);
-    }
 
     // reset striker position when all movement has stopped
     function executeStrikerReset(actionData) {
@@ -185,10 +176,8 @@ function GameCanvas({
         ctx.strokeStyle = "black";
         ctx.lineWidth = 1;
         ctx.strokeRect(frameX, frameY, frameSize, frameSize);
-        ctx.strokeRect(boardX, boardY, boardSize, boardSize);
-
-        // draw pockets
-        const pocketRadius = pocketDiameter / 2;
+        ctx.strokeRect(boardX, boardY, boardSize, boardSize);        // draw pockets
+        const pocketRadius = Pocket.POCKET_DIAMETER / 2;
         const pocketPositions = [
             [boardX + pocketRadius, boardY + pocketRadius],
             [boardX + boardSize - pocketRadius, boardY + pocketRadius],
@@ -632,10 +621,8 @@ function GameCanvas({
                         velocity: { ...coin.velocity },
                     })),
                 });
-            }
-
-            const ctx = canvasRef.current.getContext("2d");
-            const pocketRadius = pocketDiameter / 2;
+            }            const ctx = canvasRef.current.getContext("2d");
+            const pocketRadius = Pocket.POCKET_DIAMETER / 2;
 
             const pockets = [
                 { x: boardX + pocketRadius, y: boardY + pocketRadius },
@@ -698,10 +685,9 @@ function GameCanvas({
             // process coin pocketing animations
             beingPocketedCoinsRef.current =
                 beingPocketedCoinsRef.current.filter((item) => {
-                    const animationComplete = item.coin.updatePocketAnimation();
-                    if (animationComplete) {
+                    const animationComplete = item.coin.updatePocketAnimation();                    if (animationComplete) {
                         // animation is complete, remove coin and broadcast
-                        removeCoin(item.coin.id);
+                        Pocket.removeCoin(item.coin.id, coinsRef, setCoins);
                         pocketedThisTurnRef.current.push(item.coin);
 
                         if (socket && roomName) {
@@ -1366,9 +1352,8 @@ function GameCanvas({
     useEffect(() => {
         if (!socket || !roomName) return;
         const handleCoinsPocketed = (data) => {
-            if (data.roomName !== roomName) return;
-            data.pocketedIds.forEach((id) => {
-                removeCoin(id);
+            if (data.roomName !== roomName) return;            data.pocketedIds.forEach((id) => {
+                Pocket.removeCoin(id, coinsRef, setCoins);
             });
             const ctx = canvasRef.current.getContext("2d");
             drawBoard(ctx);

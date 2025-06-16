@@ -29,8 +29,6 @@ handleGameReset
 
 Pocket Functions:
 
-addCoinAtCenter
-removeCoin
 pocketedCoinsRef
 pocketedThisTurnRef
 pocketDiameter
