@@ -1,4 +1,5 @@
 import Physics from './Physics.js';
+import Coin from './Coin.js';
 
 /**
  * Pocket utility functions for carrom game
@@ -67,6 +68,33 @@ export class Pocket {
         
         // animation complete
         return obj.pocketAnimationProgress >= 1;
+    }
+
+    /**
+     * Add a coin at the center of the board as penalty
+     * @param {number} id - Coin ID
+     * @param {string} color - Coin color
+     * @param {Object} canvasRef - Canvas reference
+     * @param {number} boardSize - Board size
+     * @param {Object} coinsRef - Coins reference
+     * @param {Function} setCoins - Set coins function
+     * @param {Object} pocketedCoinsRef - Pocketed coins reference
+     * @returns {Object} The new coin created
+     */
+    static addCoinAtCenter(id, color, canvasRef, boardSize, coinsRef, setCoins, pocketedCoinsRef) {
+        if (!canvasRef.current) return null;
+        
+        const boardX = (canvasRef.current.width - boardSize) / 2;
+        const boardY = (canvasRef.current.height - boardSize) / 2;
+        const centerX = boardX + boardSize / 2;
+        const centerY = boardY + boardSize / 2;
+        
+        const newCoin = Coin.createCoinAtCenter(id, color, centerX, centerY);
+        coinsRef.current = [...coinsRef.current, newCoin];
+        setCoins([...coinsRef.current]);
+        pocketedCoinsRef.current.delete(id);
+        
+        return newCoin;
     }
 
     /**

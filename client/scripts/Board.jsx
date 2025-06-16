@@ -83,22 +83,8 @@ function GameCanvas({
         initialCoinCountsRef.current = {
             white: allCoins.filter((coin) => coin.color === "white").length,
             black: allCoins.filter((coin) => coin.color === "black").length,
-            red: allCoins.filter((coin) => coin.color === "red").length,
-        };
+            red: allCoins.filter((coin) => coin.color === "red").length,        };
     }, []);
-
-    // add a coin at the center of the board as penalty
-    function addCoinAtCenter(id, color) {
-        if (!canvasRef.current) return;
-        const boardX = (canvasRef.current.width - boardSize) / 2;
-        const boardY = (canvasRef.current.height - boardSize) / 2;
-        const centerX = boardX + boardSize / 2;
-        const centerY = boardY + boardSize / 2;
-        const newCoin = Coin.createCoinAtCenter(id, color, centerX, centerY);
-        coinsRef.current = [...coinsRef.current, newCoin];
-        setCoins([...coinsRef.current]);
-        pocketedCoinsRef.current.delete(id);
-    }
 
     // remove a coin by id
     function removeCoin(id) {
@@ -1396,10 +1382,9 @@ function GameCanvas({
     // force a redraw
 
     useEffect(() => {
-        if (!socket || !roomName) return;
-        const handleDebtPaid = (data) => {
+        if (!socket || !roomName) return;        const handleDebtPaid = (data) => {
             if (data.roomName !== roomName) return;
-            addCoinAtCenter(data.coinId, data.coinColor);
+            Pocket.addCoinAtCenter(data.coinId, data.coinColor, canvasRef, boardSize, coinsRef, setCoins, pocketedCoinsRef);
             const ctx = canvasRef.current.getContext("2d");
             drawBoard(ctx);
         };
@@ -1411,10 +1396,9 @@ function GameCanvas({
     // add queen back to center on both clients
     // force a redraw
     useEffect(() => {
-        if (!socket || !roomName) return;
-        const handleQueenReset = (data) => {
+        if (!socket || !roomName) return;        const handleQueenReset = (data) => {
             if (data.roomName !== roomName) return;
-            addCoinAtCenter(5, "red");
+            Pocket.addCoinAtCenter(5, "red", canvasRef, boardSize, coinsRef, setCoins, pocketedCoinsRef);
             const ctx = canvasRef.current.getContext("2d");
             drawBoard(ctx);
         };
