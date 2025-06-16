@@ -32,16 +32,6 @@ Pocket Functions:
 pocketedCoinsRef
 pocketedThisTurnRef
 
-Draw Functions:
-
-drawBoard
-frameSize
-boardSize
-baseDistance
-baseHeight
-baseWidth
-centerCircleDiameter
-
 Game State Functions:
 
 continuedTurnsRef

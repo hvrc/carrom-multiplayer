@@ -4,6 +4,7 @@ import Coin from "./Coin";
 import Physics from "./Physics";
 import Pocket from "./Pocket";
 import Draw from "./Draw";
+import Hand from "./Hand";
 
 function GameCanvas({
     isMyTurn = true,
@@ -13,24 +14,18 @@ function GameCanvas({
     roomName,
     gameManager,
 }) {
-    const canvasRef = useRef(null);
-    const strikerRef = useRef(null);
+    const canvasRef = useRef(null);    const strikerRef = useRef(null);
 
     // track how many continued turns remain
     // track how many coins player owes
     const continuedTurnsRef = useRef(0);
     const debtRef = useRef(0);
-    const [isPlacing, setisPlacing] = useState(false);
-    const [canPlace, setCanPlace] = useState(true);
-    const [isFlickerActive, setIsFlickerActive] = useState(false);
+    
+    // Hand interaction manager
+    const handRef = useRef(new Hand());
+    const [handState, setHandState] = useState(handRef.current.getState());
+    
     const [isStrikerColliding, setIsStrikerColliding] = useState(false);
-    const [flick, setFlick] = useState({
-        active: false,
-        startX: 0,
-        startY: 0,
-        endX: 0,
-        endY: 0,
-    });
     const [isAnimating, setIsAnimating] = useState(false);
     const [coins, setCoins] = useState([]);
     const coinsRef = useRef([]);
@@ -49,8 +44,7 @@ function GameCanvas({
     // track striker being pocketed (for animation)
     const beingPocketedStrikerRef = useRef(null);
 
-    const flickMaxLength = 120;
-    const flickPower = 0.4;    // consistent movement threshold for both striker and coins
+    // consistent movement threshold for both striker and coins
     const MOVEMENT_THRESHOLD = 0.21;
 
     // add coins at the center of the board
@@ -58,7 +52,9 @@ function GameCanvas({
       useEffect(() => {
         if (!canvasRef.current) return;
         const boardX = (canvasRef.current.width - Draw.BOARD_SIZE) / 2;
-        const boardY = (canvasRef.current.height - Draw.BOARD_SIZE) / 2;        // Center position for coin formation
+        const boardY = (canvasRef.current.height - Draw.BOARD_SIZE) / 2;
+        
+        // Center position for coin formation
         const centerX = boardX + Draw.BOARD_SIZE / 2;
         const centerY = boardY + Draw.BOARD_SIZE / 2;
 
@@ -67,13 +63,43 @@ function GameCanvas({
 
         coinsRef.current = coins;
         setCoins(coins);
-
+        
         // Update initial coin counts for game end detection
         const allCoins = coins;
         initialCoinCountsRef.current = {
             white: allCoins.filter((coin) => coin.color === "white").length,
             black: allCoins.filter((coin) => coin.color === "black").length,
             red: allCoins.filter((coin) => coin.color === "red").length,        };
+        
+        // Set up Hand callbacks
+        handRef.current.setCallbacks({
+            onStateChange: (newState) => setHandState(newState),
+            onStrikerMove: (data) => {
+                if (socket && roomName) {
+                    socket.emit("strikerMove", {
+                        roomName,
+                        ...data
+                    });
+                }
+            },
+            onCollisionUpdate: (isColliding) => {
+                setIsStrikerColliding(isColliding);
+                if (socket && roomName) {
+                    socket.emit("strikerCollisionUpdate", {
+                        roomName,
+                        playerRole,
+                        isColliding,
+                    });
+                }
+            },
+            onAnimationStart: () => setIsAnimating(true),
+            onRedraw: (collisionState) => {
+                const ctx = canvasRef.current?.getContext("2d");
+                if (ctx) {
+                    Draw.drawBoard(ctx, createGameState(), playerRole, collisionState);
+                }
+            }
+        });
     }, []);
 
     // reset striker position when all movement has stopped
@@ -124,230 +150,73 @@ function GameCanvas({
         strikerRef.current.isStrikerMoving = false;
 
         // clear pocketed coins for new turn
-        pocketedThisTurnRef.current = [];        // redraw the board
+        pocketedThisTurnRef.current = [];
+        
+        // redraw the board
         const gameState = {
             strikerRef,
             coinsRef,
             isStrikerColliding,
-            isFlickerActive,
-            flick,
-            flickMaxLength
-        };
-        Draw.drawBoard(ctx, gameState, playerRole);    }    
+            isFlickerActive: handState.isFlickerActive,
+            flick: handState.flick,
+            flickMaxLength: handState.flickMaxLength
+        };        Draw.drawBoard(ctx, gameState, playerRole);
+    }
+    
     // Helper function to create game state object for drawing
     const createGameState = () => ({
         strikerRef,
         coinsRef,
         isStrikerColliding,
-        isFlickerActive,
-        flick,
-        flickMaxLength
+        isFlickerActive: handState.isFlickerActive,
+        flick: handState.flick,
+        flickMaxLength: handState.flickMaxLength
     });
 
     // show place button immediately after clicking flick
     const handleFlick = () => {
-        // prevent flicking if striker is colliding with coins
-        if (isStrikerColliding) {
-            // console.log("Cannot flick: striker is overlapping with coins");
-            return;
-        }
-
-        setCanPlace(false);
-        setIsFlickerActive(true);
-        setTimeout(() => setCanPlace(true), 0);
+        handRef.current.handleFlick(isStrikerColliding);
     };
 
     const handlePlace = () => {
-        setCanPlace(true);
-        setisPlacing(false);
-        setIsFlickerActive(false);
-        setIsStrikerColliding(false); // reset collision state when not placing
-        setFlick({ active: false, startX: 0, startY: 0, endX: 0, endY: 0 });
-        if (strikerRef.current) strikerRef.current.isPlacing = false;
+        handRef.current.handlePlace(strikerRef, socket, roomName, playerRole);    };
 
-        // emit collision state reset to other players
-        if (socket && roomName) {
-            socket.emit("strikerCollisionUpdate", {
-                roomName,
-                playerRole,
-                isColliding: false,
-            });
-        }
-    };
-
-    // flick mouse handlers
-    const handleFlickMouseDown = (e) => {
-        if (!isMyTurn || !strikerRef.current || !isFlickerActive) return;
-
-        // prevent flicking if striker is colliding with coins
-        if (isStrikerColliding) {
-            // console.log("Cannot start flick: striker is overlapping with coins");
-            return;
-        }
-
-        const rect = canvasRef.current.getBoundingClientRect();
-        let x = e.clientX - rect.left;
-        let y = e.clientY - rect.top;
-
-        if (playerRole === "joiner") {
-            x = canvasRef.current.width - x;
-            y = canvasRef.current.height - y;
-        }
-
-        setFlick({
-            active: true,
-            startX: strikerRef.current.x,
-            startY: strikerRef.current.y,
-            endX: x,
-            endY: y,
+    // Mouse event handlers delegated to Hand class
+    const handleMouseDown = (e) => {
+        handRef.current.handleMouseDown(e, {
+            isAnimating,
+            isMyTurn,
+            strikerRef,
+            canvasRef,
+            playerRole,
+            isStrikerColliding
         });
     };
 
-    const handleFlickMouseMove = (e) => {
-        if (
-            !isMyTurn ||
-            !strikerRef.current ||
-            !isFlickerActive ||
-            !flick.active
-        )
-            return;
-        const rect = canvasRef.current.getBoundingClientRect();
-        let x = e.clientX - rect.left;
-        let y = e.clientY - rect.top;
-        if (playerRole === "joiner") {
-            x = canvasRef.current.width - x;
-            y = canvasRef.current.height - y;
-        }
-        setFlick((s) => ({ ...s, endX: x, endY: y }));
-    };
-    const handleFlickMouseUp = (e) => {
-        if (
-            !isMyTurn ||
-            !strikerRef.current ||
-            !isFlickerActive ||
-            !flick.active
-        )
-            return;
-
-        // prevent execution if striker is colliding with coins
-        if (isStrikerColliding) {
-            // console.log("Cannot execute flick: striker is overlapping with coins");
-            setFlick({ active: false, startX: 0, startY: 0, endX: 0, endY: 0 });
-            return;
-        }
-
-        // calculate velocity (opposite direction of pull)
-        let dx = flick.startX - flick.endX;
-        let dy = flick.startY - flick.endY;
-        const dist = Math.hypot(dx, dy);
-        if (dist > flickMaxLength) {
-            const scale = flickMaxLength / dist;
-            dx *= scale;
-            dy *= scale;
-        }
-        strikerRef.current.velocity.x = dx * flickPower;
-        strikerRef.current.velocity.y = dy * flickPower;
-        strikerRef.current.isStrikerMoving = true;
-        setFlick({ active: false, startX: 0, startY: 0, endX: 0, endY: 0 });
-        setIsAnimating(true);
-    };
-
-    // unified mouse event handlers to switch between placement and flicker modes
-    // placement mode, allow dragging the striker
-    // check if click is on striker
-    // 30px radius for striker hit
-    const handleMouseDown = (e) => {
-        // block all input when animation is active (striker/coins are moving)
-        if (isAnimating) return;
-
-        if (isFlickerActive) {
-            handleFlickMouseDown(e);
-        } else if (canPlace) {
-            if (!isMyTurn || !strikerRef.current) return;
-            const rect = canvasRef.current.getBoundingClientRect();
-            let x = e.clientX - rect.left;
-            let y = e.clientY - rect.top;
-            if (playerRole === "joiner") {
-                x = canvasRef.current.width - x;
-                y = canvasRef.current.height - y;
-            }
-            const dx = x - strikerRef.current.x;
-            const dy = y - strikerRef.current.y;
-            if (Math.hypot(dx, dy) < 30) {
-                setisPlacing(true);
-                strikerRef.current.isPlacing = true;
-            }
-        }
-    };
     const handleMouseMove = (e) => {
-        // block all input when animation is active (striker/coins are moving)
-        if (isAnimating) return;
-
-        if (isFlickerActive) {
-            handleFlickMouseMove(e);
-        } else if (isPlacing && canPlace && isMyTurn && strikerRef.current) {
-            const rect = canvasRef.current.getBoundingClientRect();
-            let x = e.clientX - rect.left;
-            let y = e.clientY - rect.top;
-            if (playerRole === "joiner") {
-                x = canvasRef.current.width - x;
-                y = canvasRef.current.height - y;
-            }
-
-            // Only update x position, keep y position fixed
-            // Constrain x position to be between 226 and 667
-            const minX = 226;
-            const maxX = 673;
-            strikerRef.current.x = Math.max(minX, Math.min(maxX, x));
-            // strikerRef.current.y remains unchanged            // check for collision in real-time during drag
-            const isCurrentlyColliding = Physics.checkStrikerCoinCollision(strikerRef.current, coinsRef.current);
-            if (isCurrentlyColliding !== isStrikerColliding) {
-                setIsStrikerColliding(isCurrentlyColliding);
-            }
-
-            // emit collision/invalid state updates to other player
-            if (socket && roomName) {
-                socket.emit("strikerCollisionUpdate", {
-                    roomName,
-                    playerRole,
-                    isColliding: isCurrentlyColliding,
-                });
-            }
-
-            // sync striker position to other player
-            if (socket && roomName) {
-                socket.emit("strikerMove", {
-                    roomName,
-                    position: {
-                        x: strikerRef.current.x,
-                        y: strikerRef.current.y,
-                    },
-                });
-            }
-
-            const ctx = canvasRef.current.getContext("2d");            // pass the real-time collision state to drawBoard for immediate visual feedback
-            Draw.drawBoard(ctx, createGameState(), playerRole, isCurrentlyColliding);
-        }
+        handRef.current.handleMouseMove(e, {
+            isAnimating,
+            isMyTurn,
+            strikerRef,
+            canvasRef,
+            playerRole,
+            coinsRef,
+            socket,
+            roomName
+        });
     };
 
     const handleMouseUp = (e) => {
-        // block all input when animation is active (striker/coins are moving)
-        if (isAnimating) return;
-
-        if (isFlickerActive) {
-            handleFlickMouseUp(e);
-        } else if (isPlacing) {
-            setisPlacing(false);
-            if (strikerRef.current) strikerRef.current.isPlacing = false;            // emit final collision state when placement ends
-            if (socket && roomName) {
-                const finalCollisionState = Physics.checkStrikerCoinCollision(strikerRef.current, coinsRef.current);
-                socket.emit("strikerCollisionUpdate", {
-                    roomName,
-                    playerRole,
-                    isColliding: finalCollisionState,
-                });
-            }
-        }
+        handRef.current.handleMouseUp(e, {
+            isAnimating,
+            isMyTurn,
+            strikerRef,
+            isStrikerColliding,
+            coinsRef,
+            socket,
+            roomName,
+            playerRole
+        });
     };    
     // animation loop for striker and coin movement
     // track the last scored coin to prevent duplicate scoring
@@ -415,7 +284,9 @@ function GameCanvas({
                     x: boardX + Draw.BOARD_SIZE - pocketRadius,
                     y: boardY + Draw.BOARD_SIZE - pocketRadius,
                 },
-            ];            // check if striker is pocketed
+            ];
+
+            // check if striker is pocketed
             const striker = strikerRef.current;
             if (
                 !striker.beingPocketed &&
@@ -492,7 +363,9 @@ function GameCanvas({
                     beingPocketedStrikerRef.current = null;
 
                     // reset striker's pocketing state and radius
-                    strikerRef.current.resetPocketingState();                    // immediately reset striker position to correct baseline for next player
+                    strikerRef.current.resetPocketingState();
+
+                    // immediately reset striker position to correct baseline for next player
                     const boardX = (canvasRef.current.width - Draw.BOARD_SIZE) / 2;
                     const boardY = (canvasRef.current.height - Draw.BOARD_SIZE) / 2;
                     const bottomBaselineY =
@@ -694,7 +567,9 @@ function GameCanvas({
                         }
                     }
                 }
-            });            // remove pocketed coins section is now handled by animation processing above
+            });
+
+            // remove pocketed coins section is now handled by animation processing above
             // draw updated state
             Draw.drawBoard(ctx, createGameState(), playerRole);
 
@@ -703,16 +578,18 @@ function GameCanvas({
                 striker.isMoving(MOVEMENT_THRESHOLD) ||
                 coinsRef.current.some((coin) =>
                     coin.isMoving(MOVEMENT_THRESHOLD),
-                ) ||
-                beingPocketedCoinsRef.current.length > 0 || // keep animating while coins are being pocketed
+                ) ||                beingPocketedCoinsRef.current.length > 0 || // keep animating while coins are being pocketed
                 beingPocketedStrikerRef.current !== null; // keep animating while striker is being pocketed
 
             if (isAnythingMoving) {
                 animationId = requestAnimationFrame(animate);
             } else {
                 setIsAnimating(false);
-                setIsFlickerActive(false);
-                setCanPlace(true);
+                // Reset Hand state when animation stops
+                handRef.current._updateState({
+                    isFlickerActive: false,
+                    canPlace: true
+                });
 
                 // execute any pending turn actions now that all movement has stopped
                 if (pendingTurnActionRef.current) {
@@ -954,7 +831,9 @@ function GameCanvas({
         const handleStrikerCollisionUpdate = (data) => {
             if (data.roomName === roomName) {
                 // update collision state based on remote player's collision check
-                setIsStrikerColliding(data.isColliding);                // redraw board immediately with updated collision state
+                setIsStrikerColliding(data.isColliding);
+                
+                // redraw board immediately with updated collision state
                 const ctx = canvasRef.current.getContext("2d");
                 Draw.drawBoard(ctx, createGameState(), playerRole);
             }
@@ -1334,7 +1213,7 @@ function GameCanvas({
             canvas.removeEventListener("mouseup", handleMouseUp);
             canvas.removeEventListener("mouseleave", handleMouseUp);
         };
-    }, [isPlacing, isMyTurn, isFlickerActive, flick]);
+    }, [handState.isPlacing, isMyTurn, handState.isFlickerActive, handState.flick]);
 
     // cleanup pending actions on component unmount or room change
     useEffect(() => {
@@ -1350,14 +1229,13 @@ function GameCanvas({
             <canvas
                 ref={canvasRef}
                 width={900}
-                height={900}
-                style={{
+                height={900}                style={{
                     backgroundColor: "#fff",
                     cursor: isAnimating
                         ? "not-allowed"
-                        : isPlacing
+                        : handState.isPlacing
                           ? "grabbing"
-                          : isMyTurn && canPlace
+                          : isMyTurn && handState.canPlace
                             ? "grab"
                             : "default",
                 }}
@@ -1366,7 +1244,7 @@ function GameCanvas({
             {isMyTurn &&
                 !isAnimating &&
                 !strikerRef.current?.isStrikerMoving &&
-                (isFlickerActive ? (
+                (handState.isFlickerActive ? (
                     <button onClick={handlePlace} style={{ marginBottom: 8 }}>
                         Place
                     </button>
