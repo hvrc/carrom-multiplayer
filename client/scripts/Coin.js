@@ -1,3 +1,10 @@
+// add coin, add coin at center
+// handle coin border collision
+// coin handler border collision
+// resolve circle collision
+// is near any pocket, start pocketing, updatepocketing animation
+// coin state management ?
+
 export default class Coin {
     constructor({
         id,
@@ -170,5 +177,15 @@ export default class Coin {
         coins.push(queenCoin);
 
         return coins;
+    }
+
+    // Static method to create a single coin at specified position
+    static createCoin({ id, color, x, y }) {
+        return new Coin({ id, color, x, y });
+    }
+
+    // Static method to create a coin at center position
+    static createCoinAtCenter(id, color, centerX, centerY) {
+        return new Coin({ id, color, x: centerX, y: centerY });
     }
 }

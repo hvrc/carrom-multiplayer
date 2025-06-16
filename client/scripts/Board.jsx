@@ -85,15 +85,6 @@ function GameCanvas({
         };
     }, []);
 
-    // add a coin to the list
-    // remove it from being tracked as pocketed
-    function addCoin({ id, color, x, y }) {
-        const newCoin = new Coin({ id, color, x, y });
-        coinsRef.current = [...coinsRef.current, newCoin];
-        setCoins([...coinsRef.current]);
-        pocketedCoinsRef.current.delete(id);
-    }
-
     // add a coin at the center of the board
     function addCoinAtCenter(id, color) {
         if (!canvasRef.current) return;
@@ -101,7 +92,10 @@ function GameCanvas({
         const boardY = (canvasRef.current.height - boardSize) / 2;
         const centerX = boardX + boardSize / 2;
         const centerY = boardY + boardSize / 2;
-        addCoin({ id, color, x: centerX, y: centerY });
+        const newCoin = Coin.createCoinAtCenter(id, color, centerX, centerY);
+        coinsRef.current = [...coinsRef.current, newCoin];
+        setCoins([...coinsRef.current]);
+        pocketedCoinsRef.current.delete(id);
     }
 
     // remove a coin by id
