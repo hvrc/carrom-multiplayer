@@ -85,7 +85,7 @@ function GameCanvas({
         };
     }, []);
 
-    // add a coin at the center of the board
+    // add a coin at the center of the board as penalty
     function addCoinAtCenter(id, color) {
         if (!canvasRef.current) return;
         const boardX = (canvasRef.current.width - boardSize) / 2;
@@ -638,37 +638,7 @@ function GameCanvas({
                 b.velocity.y += impulseY / bMass;
             }
         }
-    }
-
-    // coin border
-    function handleCoinBorderCollision(coin, boardX, boardY, boardSize) {
-        let collided = false;
-        const minX = boardX + coin.radius;
-        const maxX = boardX + boardSize - coin.radius;
-        const minY = boardY + coin.radius;
-        const maxY = boardY + boardSize - coin.radius;
-        if (coin.x < minX) {
-            coin.x = minX;
-            coin.velocity.x = Math.abs(coin.velocity.x) * coin.restitution;
-            collided = true;
-        } else if (coin.x > maxX) {
-            coin.x = maxX;
-            coin.velocity.x = -Math.abs(coin.velocity.x) * coin.restitution;
-            collided = true;
-        }
-        if (coin.y < minY) {
-            coin.y = minY;
-            coin.velocity.y = Math.abs(coin.velocity.y) * coin.restitution;
-            collided = true;
-        } else if (coin.y > maxY) {
-            coin.y = maxY;
-            coin.velocity.y = -Math.abs(coin.velocity.y) * coin.restitution;
-            collided = true;
-        }
-        return collided;
-    }
-
-    // check if an object is near any pocket
+    }    // check if an object is near any pocket
     function isNearAnyPocket(x, y, pockets, threshold = 60) {
         return pockets.some((pocket) => {
             const dist = Math.hypot(x - pocket.x, y - pocket.y);
@@ -688,15 +658,14 @@ function GameCanvas({
             const boardY = (canvasRef.current.height - boardSize) / 2;
 
             strikerRef.current.update(
-                0.994,
+                0.98,
                 MOVEMENT_THRESHOLD,
                 boardX,
                 boardY,
                 boardSize,
-            );
-            coinsRef.current.forEach((coin) => {
+            );            coinsRef.current.forEach((coin) => {
                 coin.update();
-                handleCoinBorderCollision(coin, boardX, boardY, boardSize);
+                coin.handleBorderCollision(boardX, boardY, boardSize);
             });
 
             coinsRef.current.forEach((coin) => {
