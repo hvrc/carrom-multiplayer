@@ -1,16 +1,3 @@
-Animation Functions:
-
-animate (main animation loop function)
-executeStrikerReset
-setIsAnimating
-setIsFlickerActive
-isAnimating (state)
-isFlickerActive (state)
-beingPocketedCoinsRef
-beingPocketedStrikerRef
-pendingTurnActionRef
-MOVEMENT_THRESHOLD
-
 Socket Functions/Handlers:
 
 handleStrikerMove
