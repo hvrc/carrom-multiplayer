@@ -62,8 +62,10 @@ function GameCanvas({
         initialCoinCountsRef.current = {
             white: allCoins.filter((coin) => coin.color === "white").length,
             black: allCoins.filter((coin) => coin.color === "black").length,
-            red: allCoins.filter((coin) => coin.color === "red").length,        };
-          // Set up Hand callbacks
+            red: allCoins.filter((coin) => coin.color === "red").length,
+        };
+    
+        // Set up Hand callbacks
         handRef.current.setCallbacks({
             onStateChange: (newState) => setHandState(newState),
             onStrikerMove: (data) => {
@@ -101,7 +103,7 @@ function GameCanvas({
                 setHandState(handRef.current.getState());
             },
             createGameState: () => createGameState()
-        });    }, []);
+        });}, []);
 
     // Helper function to create game state object for drawing
     const createGameState = () => ({
@@ -119,7 +121,10 @@ function GameCanvas({
     };
 
     const handlePlace = () => {
-        handRef.current.handlePlace(strikerRef, socket, roomName, playerRole);    };    // Mouse event handlers delegated to Hand class
+        handRef.current.handlePlace(strikerRef, socket, roomName, playerRole);
+    };
+    
+    // Mouse event handlers delegated to Hand class
     const handleMouseDown = (e) => {
         handRef.current.handleMouseDown(e, {
             isAnimating: animationState.isAnimating,
@@ -155,7 +160,9 @@ function GameCanvas({
             roomName,
             playerRole
         });
-    };    // animation loop for striker and coin movement
+    };
+    
+    // animation loop for striker and coin movement
     useEffect(() => {
         // animation should run if it's my turn OR there are pocketing animations happening
         const shouldAnimate =
@@ -226,7 +233,9 @@ function GameCanvas({
             }
         };
 
-        socket.on("strikerCollisionUpdate", handleStrikerCollisionUpdate);        // handle striker animation sync
+        socket.on("strikerCollisionUpdate", handleStrikerCollisionUpdate);
+        
+        // handle striker animation sync
         const handleStrikerAnimation = (data) => {
             if (data.roomName === roomName && strikerRef.current) {
                 if (data.type === "startPocketing") {
@@ -270,7 +279,9 @@ function GameCanvas({
 
     // listen for turn switch and reset striker position
     useEffect(() => {
-        if (!socket || !roomName) return;        const handleTurnSwitched = (data) => {
+        if (!socket || !roomName) return;
+        
+        const handleTurnSwitched = (data) => {
             if (data.roomName !== roomName) return;
 
             // check if movement is still happening
@@ -310,7 +321,8 @@ function GameCanvas({
 
     // listen for turn continuation and reset striker position
     useEffect(() => {
-        if (!socket || !roomName) return;        const handleTurnContinued = (data) => {
+        if (!socket || !roomName) return;
+        const handleTurnContinued = (data) => {
             if (data.roomName !== roomName) return;
 
             // check if movement is still happening
@@ -346,7 +358,9 @@ function GameCanvas({
 
         socket.on("turnContinued", handleTurnContinued);
         return () => socket.off("turnContinued", handleTurnContinued);
-    }, [socket, roomName, playerRole]);    // striker movement sync, sync coin positions to other player
+    }, [socket, roomName, playerRole]);
+    
+    // striker movement sync, sync coin positions to other player
     // emit coin positions whenever coins move (animation frame)
     useEffect(() => {
         if (!socket || !roomName) return;
@@ -393,8 +407,10 @@ function GameCanvas({
     useEffect(() => {
         if (!socket || !roomName) return;
         const handleCoinsPocketed = (data) => {
-            if (data.roomName !== roomName) return;            data.pocketedIds.forEach((id) => {
-                Pocket.removeCoin(id, coinsRef, setCoins);            });
+            if (data.roomName !== roomName) return;
+            data.pocketedIds.forEach((id) => {
+                Pocket.removeCoin(id, coinsRef, setCoins);
+            });
             const ctx = canvasRef.current.getContext("2d");
             Draw.drawBoard(ctx, createGameState(), playerRole);
         };
@@ -407,9 +423,11 @@ function GameCanvas({
     // force a redraw
 
     useEffect(() => {
-        if (!socket || !roomName) return;        const handleDebtPaid = (data) => {
+        if (!socket || !roomName) return;
+        const handleDebtPaid = (data) => {
             if (data.roomName !== roomName) return;
-            Pocket.addCoinAtCenter(data.coinId, data.coinColor, canvasRef, Draw.BOARD_SIZE, coinsRef, setCoins, pocketedCoinsRef);            const ctx = canvasRef.current.getContext("2d");
+            Pocket.addCoinAtCenter(data.coinId, data.coinColor, canvasRef, Draw.BOARD_SIZE, coinsRef, setCoins, pocketedCoinsRef);
+            const ctx = canvasRef.current.getContext("2d");
             Draw.drawBoard(ctx, createGameState(), playerRole);
         };
         socket.on("debtPaid", handleDebtPaid);
@@ -420,14 +438,17 @@ function GameCanvas({
     // add queen back to center on both clients
     // force a redraw
     useEffect(() => {
-        if (!socket || !roomName) return;        const handleQueenReset = (data) => {
-            if (data.roomName !== roomName) return;            Pocket.addCoinAtCenter(5, "red", canvasRef, Draw.BOARD_SIZE, coinsRef, setCoins, pocketedCoinsRef);
+        if (!socket || !roomName) return;
+        const handleQueenReset = (data) => {
+            if (data.roomName !== roomName) return;
+            Pocket.addCoinAtCenter(5, "red", canvasRef, Draw.BOARD_SIZE, coinsRef, setCoins, pocketedCoinsRef);
             const ctx = canvasRef.current.getContext("2d");
             Draw.drawBoard(ctx, createGameState(), playerRole);
         };
         socket.on("queenReset", handleQueenReset);
         return () => socket.off("queenReset", handleQueenReset);
     }, [socket, roomName]);
+
     // listen for cover turn state updates
     useEffect(() => {
         if (!socket || !roomName) return;
@@ -477,14 +498,16 @@ function GameCanvas({
 
     // listen for game reset events
     useEffect(() => {
-        if (!socket || !roomName) return;        const handleGameReset = (data) => {
+        if (!socket || !roomName) return;
+        const handleGameReset = (data) => {
             if (data.roomName !== roomName) return;
 
             // clear any pending turn actions
             animationRef.current.pendingTurnActionRef = null;
 
             // reset all coins to centered formation
-            if (!canvasRef.current) return;            const boardX = (canvasRef.current.width - Draw.BOARD_SIZE) / 2;
+            if (!canvasRef.current) return;
+            const boardX = (canvasRef.current.width - Draw.BOARD_SIZE) / 2;
             const boardY = (canvasRef.current.height - Draw.BOARD_SIZE) / 2;
 
             // Center position for coin formation
@@ -548,7 +571,9 @@ function GameCanvas({
                 white: coins.filter((coin) => coin.color === "white").length,
                 black: coins.filter((coin) => coin.color === "black").length,
                 red: coins.filter((coin) => coin.color === "red").length,
-            };            // reset game state
+            };
+            
+            // reset game state
             pocketedCoinsRef.current.clear();
             pocketedThisTurnRef.current = [];
             animationRef.current.beingPocketedCoinsRef = [];
@@ -560,14 +585,17 @@ function GameCanvas({
             gameManager.resetGame();
 
             // reset striker position
-            if (strikerRef.current) {                const initialX = boardX + Draw.BOARD_SIZE / 2;
+            if (strikerRef.current) {
+                const initialX = boardX + Draw.BOARD_SIZE / 2;
                 const initialY =
                     boardY + Draw.BOARD_SIZE - Draw.BASE_DISTANCE - Draw.BASE_HEIGHT / 2;
                 strikerRef.current.x = initialX;
                 strikerRef.current.y = initialY;
                 strikerRef.current.velocity = { x: 0, y: 0 };
                 strikerRef.current.isStrikerMoving = false;
-            }            // redraw board
+            }            
+            
+            // redraw board
             const ctx = canvasRef.current.getContext("2d");
             Draw.drawBoard(ctx, createGameState(), playerRole);
         };
@@ -575,9 +603,11 @@ function GameCanvas({
         socket.on("gameReset", handleGameReset);
         return () => socket.off("gameReset", handleGameReset);
     }, [socket, roomName, gameManager]);
+
     // continuously check for striker-coin collisions
     useEffect(() => {
-        if (!strikerRef.current) return;        const checkCollisions = () => {
+        if (!strikerRef.current) return;
+        const checkCollisions = () => {
             const isCurrentlyColliding = Physics.checkStrikerCoinCollision(strikerRef.current, coinsRef.current);
             if (isCurrentlyColliding !== isStrikerColliding) {
                 setIsStrikerColliding(isCurrentlyColliding);
@@ -591,7 +621,8 @@ function GameCanvas({
     }, [isStrikerColliding, coins]); // re-run when coins change
 
     // separate useEffect for canvas event listeners
-    useEffect(() => {        const canvas = canvasRef.current;
+    useEffect(() => {
+        const canvas = canvasRef.current;
         const ctx = canvas.getContext("2d");
         Draw.drawBoard(ctx, createGameState(), playerRole);
         canvas.addEventListener("mousedown", handleMouseDown);
@@ -616,7 +647,8 @@ function GameCanvas({
             <canvas
                 ref={canvasRef}
                 width={900}
-                height={900}                style={{
+                height={900}
+                style={{
                     backgroundColor: "#fff",
                     cursor: animationState.isAnimating
                         ? "not-allowed"
@@ -627,7 +659,9 @@ function GameCanvas({
                             : "default",
                 }}
             />
-            <br />            {isMyTurn &&
+            <br />
+            
+            {isMyTurn &&
                 !animationState.isAnimating &&
                 !strikerRef.current?.isStrikerMoving &&
                 (handState.isFlickerActive ? (
