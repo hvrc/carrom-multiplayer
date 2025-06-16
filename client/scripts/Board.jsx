@@ -58,11 +58,9 @@ function GameCanvas({
     const baseDistance = 102;
     const baseHeight = 32;
     const baseWidth = 470;
-    const centerCircleDiameter = 170;
-
-    // add coins at the center of the board
+    const centerCircleDiameter = 170;    // add coins at the center of the board
     // place 2 white and 2 black coins, queen
-
+    
     useEffect(() => {
         if (!canvasRef.current) return;
         const boardX = (canvasRef.current.width - boardSize) / 2;
@@ -72,51 +70,8 @@ function GameCanvas({
         const centerX = boardX + boardSize / 2;
         const centerY = boardY + boardSize / 2;
 
-        // Configuration for centered coin formation
-        const coinFormation = {
-            centerX: centerX,
-            centerY: centerY,
-            rings: [
-                { count: 6, radius: 32 }, // Inner ring - 6 coins
-                { count: 12, radius: 62 }, // Outer ring - 12 coins
-            ],
-        };
-
-        const coins = [];
-        let coinId = 1;
-        let colorIndex = 1; // Start with 1 to alternate colors properly
-
-        // Create rings of coins
-        coinFormation.rings.forEach((ring) => {
-            for (let i = 0; i < ring.count; i++) {
-                const angle = i * ((2 * Math.PI) / ring.count);
-                const x = coinFormation.centerX + ring.radius * Math.cos(angle);
-                const y = coinFormation.centerY + ring.radius * Math.sin(angle);
-
-                // Alternate between white and black
-                const color = colorIndex % 2 ? "white" : "black";
-
-                coins.push(
-                    new Coin({
-                        id: coinId++,
-                        color: color,
-                        x: x,
-                        y: y,
-                    }),
-                );
-
-                colorIndex++;
-            }
-        });
-
-        // Add queen at exact center
-        const queenCoin = new Coin({
-            id: coinId++,
-            color: "red",
-            x: coinFormation.centerX,
-            y: coinFormation.centerY,
-        });
-        coins.push(queenCoin);
+        // Create coin formation using the static method from Coin class
+        const coins = Coin.createCoinFormation(centerX, centerY);
 
         coinsRef.current = coins;
         setCoins(coins);
