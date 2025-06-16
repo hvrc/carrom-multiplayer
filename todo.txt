@@ -34,6 +34,8 @@ fix slow speed on joiner window
 client optimization
 server optimization
 
+coin, striker, physics, pocket, board, gameManager, socket manager
+
 seperate server index logic?
 longer heartbeats in server?
 refresh and retry bug
