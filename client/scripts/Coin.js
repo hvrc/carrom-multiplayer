@@ -1,4 +1,3 @@
-// coin handler border collision
 // coin state management ?
 
 import Pocket from './Pocket.js';
