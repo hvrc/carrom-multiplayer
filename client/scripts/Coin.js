@@ -1,9 +1,8 @@
 // coin handler border collision
-// resolve circle collision
-// is near any pocket, start pocketing, updatepocketing animation
 // coin state management ?
 
 import Pocket from './Pocket.js';
+import Physics from './Physics.js';
 
 export default class Coin {
     constructor({
@@ -96,37 +95,9 @@ export default class Coin {
         // if being pocketed, consider it as moving until animation completes
         if (this.beingPocketed) return true;
         return Math.abs(this.velocity.x) > threshold || Math.abs(this.velocity.y) > threshold;
-    }
-
-    // Handle coin border collision with board boundaries
+    }    // Handle coin border collision with board boundaries
     handleBorderCollision(boardX, boardY, boardSize) {
-        let collided = false;
-        const minX = boardX + this.radius;
-        const maxX = boardX + boardSize - this.radius;
-        const minY = boardY + this.radius;
-        const maxY = boardY + boardSize - this.radius;
-        
-        if (this.x < minX) {
-            this.x = minX;
-            this.velocity.x = Math.abs(this.velocity.x) * this.restitution;
-            collided = true;
-        } else if (this.x > maxX) {
-            this.x = maxX;
-            this.velocity.x = -Math.abs(this.velocity.x) * this.restitution;
-            collided = true;
-        }
-        
-        if (this.y < minY) {
-            this.y = minY;
-            this.velocity.y = Math.abs(this.velocity.y) * this.restitution;
-            collided = true;
-        } else if (this.y > maxY) {
-            this.y = maxY;
-            this.velocity.y = -Math.abs(this.velocity.y) * this.restitution;
-            collided = true;
-        }
-        
-        return collided;
+        return Physics.handleBorderCollision(this, boardX, boardY, boardSize);
     }
 
     // Static method to create coin formation

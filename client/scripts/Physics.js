@@ -85,6 +85,44 @@ export class Physics {
     static getDistance(a, b) {
         return Math.hypot(b.x - a.x, b.y - a.y);
     }
+
+    /**
+     * Handle border collision for circular objects with board boundaries
+     * @param {Object} obj - The circular object (coin or striker)
+     * @param {number} boardX - Board X position
+     * @param {number} boardY - Board Y position
+     * @param {number} boardSize - Board size
+     * @returns {boolean} True if collision occurred
+     */
+    static handleBorderCollision(obj, boardX, boardY, boardSize) {
+        let collided = false;
+        const minX = boardX + obj.radius;
+        const maxX = boardX + boardSize - obj.radius;
+        const minY = boardY + obj.radius;
+        const maxY = boardY + boardSize - obj.radius;
+        
+        if (obj.x < minX) {
+            obj.x = minX;
+            obj.velocity.x = Math.abs(obj.velocity.x) * obj.restitution;
+            collided = true;
+        } else if (obj.x > maxX) {
+            obj.x = maxX;
+            obj.velocity.x = -Math.abs(obj.velocity.x) * obj.restitution;
+            collided = true;
+        }
+        
+        if (obj.y < minY) {
+            obj.y = minY;
+            obj.velocity.y = Math.abs(obj.velocity.y) * obj.restitution;
+            collided = true;
+        } else if (obj.y > maxY) {
+            obj.y = maxY;
+            obj.velocity.y = -Math.abs(obj.velocity.y) * obj.restitution;
+            collided = true;
+        }
+        
+        return collided;
+    }
 }
 
 export default Physics;

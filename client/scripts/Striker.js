@@ -1,4 +1,5 @@
 import Pocket from './Pocket.js';
+import Physics from './Physics.js';
 
 export default class Striker3D {
     constructor(x, y) {
@@ -42,35 +43,8 @@ export default class Striker3D {
     updatePosition(x, y) {
         this.x = x;
         this.y = y;
-    }
-
-    handleBorderCollision(boardX, boardY, boardSize) {
-        const minX = boardX + this.radius;
-        const maxX = boardX + boardSize - this.radius;
-        const minY = boardY + this.radius;
-        const maxY = boardY + boardSize - this.radius;
-        let collided = false;
-
-        if (this.x < minX) {
-            this.x = minX;
-            this.velocity.x = Math.abs(this.velocity.x) * this.restitution;
-            collided = true;
-        } else if (this.x > maxX) {
-            this.x = maxX;
-            this.velocity.x = -Math.abs(this.velocity.x) * this.restitution;
-            collided = true;
-        }
-
-        if (this.y < minY) {
-            this.y = minY;
-            this.velocity.y = Math.abs(this.velocity.y) * this.restitution;
-            collided = true;
-        } else if (this.y > maxY) {
-            this.y = maxY;
-            this.velocity.y = -Math.abs(this.velocity.y) * this.restitution;
-            collided = true;
-        }
-        return collided;
+    }    handleBorderCollision(boardX, boardY, boardSize) {
+        return Physics.handleBorderCollision(this, boardX, boardY, boardSize);
     }
     
     isMoving(threshold = 0.2) {
