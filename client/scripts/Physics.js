@@ -123,6 +123,23 @@ export class Physics {
         
         return collided;
     }
+
+    /**
+     * Check if striker is colliding with any coins during placement
+     * @param {Object} striker - The striker object
+     * @param {Array} coins - Array of coin objects
+     * @returns {boolean} True if striker is colliding with any coin
+     */
+    static checkStrikerCoinCollision(striker, coins) {
+        if (!striker) return false;
+
+        for (const coin of coins) {
+            if (Physics.areCirclesColliding(striker, coin)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
 
 export default Physics;

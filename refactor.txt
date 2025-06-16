@@ -31,7 +31,6 @@ Pocket Functions:
 
 pocketedCoinsRef
 pocketedThisTurnRef
-pocketDiameter
 
 Draw Functions:
 

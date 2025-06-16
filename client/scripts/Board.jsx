@@ -136,21 +136,8 @@ function GameCanvas({
         pocketedThisTurnRef.current = [];
 
         // redraw the board
-        drawBoard(ctx);
-    }
+        drawBoard(ctx);    }
     
-    // check if striker is colliding with any coins during placement
-    function checkStrikerCoinCollision() {
-        if (!strikerRef.current) return false;
-
-        for (const coin of coinsRef.current) {
-            if (Physics.areCirclesColliding(strikerRef.current, coin)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     const drawBoard = (ctx, overrideCollisionState = null) => {
         ctx.save();
         if (playerRole === "joiner") {
@@ -515,10 +502,8 @@ function GameCanvas({
             const minX = 226;
             const maxX = 673;
             strikerRef.current.x = Math.max(minX, Math.min(maxX, x));
-            // strikerRef.current.y remains unchanged
-
-            // check for collision in real-time during drag
-            const isCurrentlyColliding = checkStrikerCoinCollision();
+            // strikerRef.current.y remains unchanged            // check for collision in real-time during drag
+            const isCurrentlyColliding = Physics.checkStrikerCoinCollision(strikerRef.current, coinsRef.current);
             if (isCurrentlyColliding !== isStrikerColliding) {
                 setIsStrikerColliding(isCurrentlyColliding);
             }
@@ -557,11 +542,9 @@ function GameCanvas({
             handleFlickMouseUp(e);
         } else if (isPlacing) {
             setisPlacing(false);
-            if (strikerRef.current) strikerRef.current.isPlacing = false;
-
-            // emit final collision state when placement ends
+            if (strikerRef.current) strikerRef.current.isPlacing = false;            // emit final collision state when placement ends
             if (socket && roomName) {
-                const finalCollisionState = checkStrikerCoinCollision();
+                const finalCollisionState = Physics.checkStrikerCoinCollision(strikerRef.current, coinsRef.current);
                 socket.emit("strikerCollisionUpdate", {
                     roomName,
                     playerRole,
@@ -1546,10 +1529,8 @@ function GameCanvas({
     }, [socket, roomName, gameManager]);
     // continuously check for striker-coin collisions
     useEffect(() => {
-        if (!strikerRef.current) return;
-
-        const checkCollisions = () => {
-            const isCurrentlyColliding = checkStrikerCoinCollision();
+        if (!strikerRef.current) return;        const checkCollisions = () => {
+            const isCurrentlyColliding = Physics.checkStrikerCoinCollision(strikerRef.current, coinsRef.current);
             if (isCurrentlyColliding !== isStrikerColliding) {
                 setIsStrikerColliding(isCurrentlyColliding);
             }
