@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import Striker from "./Striker";
 import Coin from "./Coin";
 import Physics from "./Physics";
+import Pocket from "./Pocket";
 
 function GameCanvas({
     isMyTurn = true,
@@ -159,7 +160,9 @@ function GameCanvas({
 
         // redraw the board
         drawBoard(ctx);
-    }    // check if striker is colliding with any coins during placement
+    }
+    
+    // check if striker is colliding with any coins during placement
     function checkStrikerCoinCollision() {
         if (!strikerRef.current) return false;
 
@@ -591,14 +594,7 @@ function GameCanvas({
                 });
             }
         }
-    };    // check if an object is near any pocket
-    function isNearAnyPocket(x, y, pockets, threshold = 60) {
-        return pockets.some((pocket) => {
-            const dist = Physics.getDistance({ x, y }, pocket);
-            return dist < threshold;
-        });
-    }
-
+    };    
     // animation loop for striker and coin movement
     // track the last scored coin to prevent duplicate scoring
     useEffect(() => {
@@ -669,13 +665,11 @@ function GameCanvas({
                     x: boardX + boardSize - pocketRadius,
                     y: boardY + boardSize - pocketRadius,
                 },
-            ];
-
-            // check if striker is pocketed
+            ];            // check if striker is pocketed
             const striker = strikerRef.current;
             if (
                 !striker.beingPocketed &&
-                isNearAnyPocket(striker.x, striker.y, pockets)
+                Pocket.isNearAnyPocket(striker.x, striker.y, pockets)
             ) {
                 for (const pocket of pockets) {
                     const strikerDist = Math.hypot(
@@ -882,7 +876,7 @@ function GameCanvas({
                 // skip coins already being pocketed
                 if (coin.beingPocketed) return;
 
-                if (isNearAnyPocket(coin.x, coin.y, pockets)) {
+                if (Pocket.isNearAnyPocket(coin.x, coin.y, pockets)) {
                     for (const pocket of pockets) {
                         const coinDist = Math.hypot(
                             coin.x - pocket.x,

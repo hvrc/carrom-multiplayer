@@ -3,6 +3,8 @@
 // is near any pocket, start pocketing, updatepocketing animation
 // coin state management ?
 
+import Pocket from './Pocket.js';
+
 export default class Coin {
     constructor({
         id,
@@ -35,50 +37,20 @@ export default class Coin {
         this.pocketAnimationSpeed = 0.08;
         this.originalRadius = radius;
         this.startPocketPosition = { x: 0, y: 0 };
-    }
-    
+    }    
     // start pocketing animation
     startPocketing(pocketX, pocketY) {
-        this.beingPocketed = true;
-        this.pocketTarget = { x: pocketX, y: pocketY };
-        this.pocketAnimationProgress = 0;
-        this.startPocketPosition = { x: this.x, y: this.y };
-        
-        // stop all velocity when pocketing starts
-        this.velocity = { x: 0, y: 0 };
-        this.acceleration = { x: 0, y: 0 };
+        Pocket.startPocketing(this, pocketX, pocketY);
     }
     
     // update pocketing animation
     updatePocketAnimation() {
-        if (!this.beingPocketed || !this.pocketTarget) return false;
-        
-        this.pocketAnimationProgress += this.pocketAnimationSpeed;
-        
-        if (this.pocketAnimationProgress >= 1) {
-            this.pocketAnimationProgress = 1;
-        }
-        
-        // easing function for smooth animation
-        const easeProgress = this.pocketAnimationProgress * this.pocketAnimationProgress;
-        
-        // interpolate position
-        this.x = this.startPocketPosition.x + (this.pocketTarget.x - this.startPocketPosition.x) * easeProgress;
-        this.y = this.startPocketPosition.y + (this.pocketTarget.y - this.startPocketPosition.y) * easeProgress;
-        
-        // shrink radius as it gets closer to pocket
-        this.radius = this.originalRadius * (1 - easeProgress * 0.5);
-        
-        // animation complete
-        return this.pocketAnimationProgress >= 1;
+        return Pocket.updatePocketAnimation(this);
     }
     
     // reset pocketing state (for safety, though coins are usually removed)
     resetPocketingState() {
-        this.beingPocketed = false;
-        this.pocketTarget = null;
-        this.pocketAnimationProgress = 0;
-        this.radius = this.originalRadius;
+        Pocket.resetPocketingState(this);
     }
     
     draw(ctx) {
@@ -206,6 +178,9 @@ export default class Coin {
         coins.push(queenCoin);
 
         return coins;
+    }    // Static method to check if an object is near any pocket
+    static isNearAnyPocket(x, y, pockets, threshold = 60) {
+        return Pocket.isNearAnyPocket(x, y, pockets, threshold);
     }
 
     // Static method to create a single coin at specified position
