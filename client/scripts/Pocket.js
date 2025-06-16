@@ -1,5 +1,5 @@
-import Physics from './Physics.js';
-import Coin from './Coin.js';
+import Physics from "./Physics.js";
+import Coin from "./Coin.js";
 
 /**
  * Pocket utility functions for carrom game
@@ -7,7 +7,7 @@ import Coin from './Coin.js';
 export class Pocket {
     // Pocket dimensions
     static POCKET_DIAMETER = 45;
-    
+
     /**
      * Check if an object is near any pocket
      * @param {number} x - X coordinate of the object
@@ -34,11 +34,11 @@ export class Pocket {
         obj.pocketTarget = { x: pocketX, y: pocketY };
         obj.pocketAnimationProgress = 0;
         obj.startPocketPosition = { x: obj.x, y: obj.y };
-        
+
         // stop all velocity when pocketing starts
         obj.velocity = { x: 0, y: 0 };
         obj.acceleration = { x: 0, y: 0 };
-        
+
         // stop striker movement if it's a striker
         if (obj.isStrikerMoving !== undefined) {
             obj.isStrikerMoving = false;
@@ -52,23 +52,28 @@ export class Pocket {
      */
     static updatePocketAnimation(obj) {
         if (!obj.beingPocketed || !obj.pocketTarget) return false;
-        
+
         obj.pocketAnimationProgress += obj.pocketAnimationSpeed;
-        
+
         if (obj.pocketAnimationProgress >= 1) {
             obj.pocketAnimationProgress = 1;
         }
-        
+
         // easing function for smooth animation
-        const easeProgress = obj.pocketAnimationProgress * obj.pocketAnimationProgress;
-        
+        const easeProgress =
+            obj.pocketAnimationProgress * obj.pocketAnimationProgress;
+
         // interpolate position
-        obj.x = obj.startPocketPosition.x + (obj.pocketTarget.x - obj.startPocketPosition.x) * easeProgress;
-        obj.y = obj.startPocketPosition.y + (obj.pocketTarget.y - obj.startPocketPosition.y) * easeProgress;
-        
+        obj.x =
+            obj.startPocketPosition.x +
+            (obj.pocketTarget.x - obj.startPocketPosition.x) * easeProgress;
+        obj.y =
+            obj.startPocketPosition.y +
+            (obj.pocketTarget.y - obj.startPocketPosition.y) * easeProgress;
+
         // shrink radius as it gets closer to pocket
         obj.radius = obj.originalRadius * (1 - easeProgress * 0.5);
-        
+
         // animation complete
         return obj.pocketAnimationProgress >= 1;
     }
@@ -84,19 +89,27 @@ export class Pocket {
      * @param {Object} pocketedCoinsRef - Pocketed coins reference
      * @returns {Object} The new coin created
      */
-    static addCoinAtCenter(id, color, canvasRef, boardSize, coinsRef, setCoins, pocketedCoinsRef) {
+    static addCoinAtCenter(
+        id,
+        color,
+        canvasRef,
+        boardSize,
+        coinsRef,
+        setCoins,
+        pocketedCoinsRef,
+    ) {
         if (!canvasRef.current) return null;
-        
+
         const boardX = (canvasRef.current.width - boardSize) / 2;
         const boardY = (canvasRef.current.height - boardSize) / 2;
         const centerX = boardX + boardSize / 2;
         const centerY = boardY + boardSize / 2;
-        
+
         const newCoin = Coin.createCoinAtCenter(id, color, centerX, centerY);
         coinsRef.current = [...coinsRef.current, newCoin];
         setCoins([...coinsRef.current]);
         pocketedCoinsRef.current.delete(id);
-        
+
         return newCoin;
     }
 

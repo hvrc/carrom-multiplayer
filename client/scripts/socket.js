@@ -1,34 +1,37 @@
-import { io } from 'socket.io-client';
+import { io } from "socket.io-client";
 
 // generate or reuse a unique client id for each browser session, which is each client
 const generateClientId = () => {
-    let clientId = sessionStorage.getItem('clientId');
+    let clientId = sessionStorage.getItem("clientId");
     if (!clientId) {
-        clientId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-            const r = Math.random() * 16 | 0;
-            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-        });
-        sessionStorage.setItem('clientId', clientId);
+        clientId = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+            /[xy]/g,
+            (c) => {
+                const r = (Math.random() * 16) | 0;
+                return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+            },
+        );
+        sessionStorage.setItem("clientId", clientId);
     }
     return clientId;
 };
 
 // socket.io client... connects to server with client id attached
-const socket = io('http://localhost:3000', {
+const socket = io("http://localhost:3000", {
     autoConnect: false,
     reconnection: true,
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,
-    query: { clientId: generateClientId() }
+    query: { clientId: generateClientId() },
 });
 
 // start heartbeat
 let heartbeatInterval;
 const startHeartbeat = () => {
-    const clientId = sessionStorage.getItem('clientId');
+    const clientId = sessionStorage.getItem("clientId");
     if (clientId && !heartbeatInterval) {
         heartbeatInterval = setInterval(() => {
-            socket.emit('heartbeat', { clientId });
+            socket.emit("heartbeat", { clientId });
             // console.log('Sent heartbeat for clientId:', clientId);
         }, 5000); // Every 5 seconds
     }
@@ -39,44 +42,47 @@ const stopHeartbeat = () => {
     if (heartbeatInterval) {
         clearInterval(heartbeatInterval);
         heartbeatInterval = null;
-        console.log('Stopped heartbeat');
+        console.log("Stopped heartbeat");
     }
 };
 
 // connect to the server
-socket.on('connect', () => {
-    console.log('Socket connected with clientId:', sessionStorage.getItem('clientId'));
+socket.on("connect", () => {
+    console.log(
+        "Socket connected with clientId:",
+        sessionStorage.getItem("clientId"),
+    );
     startHeartbeat();
 });
-socket.on('connect_error', (error) => {
-    console.error('Connect error:', error);
+socket.on("connect_error", (error) => {
+    console.error("Connect error:", error);
     stopHeartbeat();
 });
 
 // reconnect to the server if the connection is lost
-socket.on('reconnect', (attempt) => {
-    const username = localStorage.getItem('username');
-    const roomName = localStorage.getItem('roomName');
-    const playerRole = localStorage.getItem('playerRole');
-    const clientId = sessionStorage.getItem('clientId');
+socket.on("reconnect", (attempt) => {
+    const username = localStorage.getItem("username");
+    const roomName = localStorage.getItem("roomName");
+    const playerRole = localStorage.getItem("playerRole");
+    const clientId = sessionStorage.getItem("clientId");
     if (username && roomName && clientId) {
-        if (playerRole === 'creator') {
-            socket.emit('createRoom', { roomName, username, clientId });
-        } else if (playerRole === 'joiner') {
-            socket.emit('joinRoom', { roomName, username, clientId });
+        if (playerRole === "creator") {
+            socket.emit("createRoom", { roomName, username, clientId });
+        } else if (playerRole === "joiner") {
+            socket.emit("joinRoom", { roomName, username, clientId });
         }
     }
     startHeartbeat();
 });
 
-socket.on('reconnect_error', (error) => {
-    console.error('Reconnect error:', error);
+socket.on("reconnect_error", (error) => {
+    console.error("Reconnect error:", error);
     stopHeartbeat();
 });
 
 // disconnect from the server
-socket.on('disconnect', (reason) => {
-    console.log('Socket disconnected:', reason);
+socket.on("disconnect", (reason) => {
+    console.log("Socket disconnected:", reason);
     stopHeartbeat();
 });
 

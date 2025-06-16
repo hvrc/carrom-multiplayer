@@ -1,5 +1,5 @@
-import Pocket from './Pocket.js';
-import Physics from './Physics.js';
+import Pocket from "./Pocket.js";
+import Physics from "./Physics.js";
 
 export default class Striker {
     constructor(x, y) {
@@ -12,8 +12,8 @@ export default class Striker {
         this.isPlacing = false;
         this.isStrikerMoving = false;
         this.restitution = 0.5;
-        this.friction = 0.98
-        
+        this.friction = 0.98;
+
         // pocketing animation state
         this.beingPocketed = false;
         this.pocketTarget = null;
@@ -35,54 +35,71 @@ export default class Striker {
 
     isPointInside(x, y) {
         const distance = Math.sqrt(
-            Math.pow(this.x - x, 2) + Math.pow(this.y - y, 2)
+            Math.pow(this.x - x, 2) + Math.pow(this.y - y, 2),
         );
         return distance <= this.radius;
     }
-    
+
     updatePosition(x, y) {
         this.x = x;
         this.y = y;
-    }    handleBorderCollision(boardX, boardY, boardSize) {
+    }
+    handleBorderCollision(boardX, boardY, boardSize) {
         return Physics.handleBorderCollision(this, boardX, boardY, boardSize);
     }
-    
+
     isMoving(threshold = 0.2) {
         // if being pocketed, consider it as moving until animation completes
         if (this.beingPocketed) return true;
-        return Math.abs(this.velocity.x) > threshold || Math.abs(this.velocity.y) > threshold;
+        return (
+            Math.abs(this.velocity.x) > threshold ||
+            Math.abs(this.velocity.y) > threshold
+        );
     }
 
-    update(friction = this.friction, stopThreshold = 0.2, boardX, boardY, boardSize) {
+    update(
+        friction = this.friction,
+        stopThreshold = 0.2,
+        boardX,
+        boardY,
+        boardSize,
+    ) {
         if (this.isPlacing) return;
         this.x += this.velocity.x;
         this.y += this.velocity.y;
 
-        if (boardX !== undefined && boardY !== undefined && boardSize !== undefined) {
+        if (
+            boardX !== undefined &&
+            boardY !== undefined &&
+            boardSize !== undefined
+        ) {
             this.handleBorderCollision(boardX, boardY, boardSize);
         }
-        
+
         this.velocity.x *= friction;
         this.velocity.y *= friction;
 
-        if (Math.abs(this.velocity.x) <= stopThreshold && Math.abs(this.velocity.y) <= stopThreshold) {
+        if (
+            Math.abs(this.velocity.x) <= stopThreshold &&
+            Math.abs(this.velocity.y) <= stopThreshold
+        ) {
             this.velocity.x = 0;
             this.velocity.y = 0;
             this.isStrikerMoving = false;
         } else {
             this.isStrikerMoving = true;
         }
-    }    
+    }
     // start pocketing animation
     startPocketing(pocketX, pocketY) {
         Pocket.startPocketing(this, pocketX, pocketY);
     }
-    
+
     // update pocketing animation
     updatePocketAnimation() {
         return Pocket.updatePocketAnimation(this);
     }
-    
+
     // reset pocketing state (for when striker is reset to base)
     resetPocketingState() {
         Pocket.resetPocketingState(this);

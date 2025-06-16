@@ -7,18 +7,18 @@ class Animation {
         // Animation state
         this.isAnimating = false;
         this.isFlickerActive = false;
-        
+
         // Animation refs
         this.beingPocketedCoinsRef = [];
         this.beingPocketedStrikerRef = null;
         this.pendingTurnActionRef = null;
-        
+
         // Constants
         this.MOVEMENT_THRESHOLD = 0.21;
-        
+
         // Animation frame ID for cleanup
         this.animationId = null;
-        
+
         // Callbacks that will be set from Board component
         this.callbacks = {};
     }
@@ -41,7 +41,7 @@ class Animation {
             onSwitchTurn: callbacks.onSwitchTurn || (() => {}),
             onContinueTurn: callbacks.onContinueTurn || (() => {}),
             onGameReset: callbacks.onGameReset || (() => {}),
-            ...callbacks
+            ...callbacks,
         };
     }
 
@@ -49,7 +49,7 @@ class Animation {
     getState() {
         return {
             isAnimating: this.isAnimating,
-            isFlickerActive: this.isFlickerActive
+            isFlickerActive: this.isFlickerActive,
         };
     }
 
@@ -65,15 +65,26 @@ class Animation {
     }
 
     // Reset striker position when all movement has stopped
-    executeStrikerReset(actionData, strikerRef, canvasRef, playerRole, continuedTurnsRef, pocketedThisTurnRef) {
+    executeStrikerReset(
+        actionData,
+        strikerRef,
+        canvasRef,
+        playerRole,
+        continuedTurnsRef,
+        pocketedThisTurnRef,
+    ) {
         if (!strikerRef.current) return;
 
         const ctx = canvasRef.current?.getContext("2d");
         if (!ctx) return;
-        
+
         const boardX = (ctx.canvas.width - Draw.BOARD_SIZE) / 2;
         const boardY = (ctx.canvas.height - Draw.BOARD_SIZE) / 2;
-        const bottomBaselineY = boardY + Draw.BOARD_SIZE - Draw.BASE_DISTANCE - Draw.BASE_HEIGHT / 2;
+        const bottomBaselineY =
+            boardY +
+            Draw.BOARD_SIZE -
+            Draw.BASE_DISTANCE -
+            Draw.BASE_HEIGHT / 2;
         const topBaselineY = boardY + Draw.BASE_DISTANCE + Draw.BASE_HEIGHT / 2;
 
         let newX = boardX + Draw.BOARD_SIZE / 2;
@@ -81,14 +92,24 @@ class Animation {
 
         if (actionData.type === "turnSwitch") {
             // reset striker position based on new turn
-            newY = actionData.newTurn === playerRole
-                ? playerRole === "joiner" ? topBaselineY : bottomBaselineY
-                : playerRole === "joiner" ? bottomBaselineY : topBaselineY;
+            newY =
+                actionData.newTurn === playerRole
+                    ? playerRole === "joiner"
+                        ? topBaselineY
+                        : bottomBaselineY
+                    : playerRole === "joiner"
+                      ? bottomBaselineY
+                      : topBaselineY;
         } else if (actionData.type === "turnContinue") {
             // reset striker position based on who continues
-            newY = actionData.continueWith === playerRole
-                ? playerRole === "joiner" ? topBaselineY : bottomBaselineY
-                : playerRole === "joiner" ? bottomBaselineY : topBaselineY;
+            newY =
+                actionData.continueWith === playerRole
+                    ? playerRole === "joiner"
+                        ? topBaselineY
+                        : bottomBaselineY
+                    : playerRole === "joiner"
+                      ? bottomBaselineY
+                      : topBaselineY;
 
             // update continued turns count
             if (actionData.continuedTurns !== undefined) {
@@ -104,7 +125,7 @@ class Animation {
 
         // clear pocketed coins for new turn
         pocketedThisTurnRef.current = [];
-        
+
         // redraw the board
         const gameState = this.callbacks.createGameState?.() || {};
         Draw.drawBoard(ctx, gameState, playerRole);
@@ -121,11 +142,11 @@ class Animation {
             socket,
             roomName,
             playerRole,
-            gameManager,
+            manager,
             continuedTurnsRef,
             debtRef,
             pocketedThisTurnRef,
-            pocketedCoinsRef
+            pocketedCoinsRef,
         } = params;
 
         if (!strikerRef.current || !isMyTurn) return;
@@ -242,32 +263,35 @@ class Animation {
         }
 
         // process coin pocketing animations
-        this.beingPocketedCoinsRef = this.beingPocketedCoinsRef.filter((item) => {
-            const animationComplete = item.coin.updatePocketAnimation();
-            
-            if (animationComplete) {
-                // animation is complete, remove coin and broadcast
-                Pocket.removeCoin(item.coin.id, coinsRef, setCoins);
-                pocketedThisTurnRef.current.push(item.coin);
+        this.beingPocketedCoinsRef = this.beingPocketedCoinsRef.filter(
+            (item) => {
+                const animationComplete = item.coin.updatePocketAnimation();
 
-                if (socket && roomName) {
-                    socket.emit("coinsPocketed", {
-                        roomName,
-                        pocketedIds: [item.coin.id],
-                    });
+                if (animationComplete) {
+                    // animation is complete, remove coin and broadcast
+                    Pocket.removeCoin(item.coin.id, coinsRef, setCoins);
+                    pocketedThisTurnRef.current.push(item.coin);
+
+                    if (socket && roomName) {
+                        socket.emit("coinsPocketed", {
+                            roomName,
+                            pocketedIds: [item.coin.id],
+                        });
+                    }
+
+                    // remove from animation list
+                    return false;
                 }
 
-                // remove from animation list
-                return false;
-            }
-
-            // keep in animation list
-            return true;
-        });
+                // keep in animation list
+                return true;
+            },
+        );
 
         // process striker pocketing animation
         if (this.beingPocketedStrikerRef) {
-            const animationComplete = strikerRef.current.updatePocketAnimation();
+            const animationComplete =
+                strikerRef.current.updatePocketAnimation();
             if (animationComplete) {
                 // animation complete, process striker pocketing
                 const strikerData = this.beingPocketedStrikerRef;
@@ -279,20 +303,32 @@ class Animation {
                 // immediately reset striker position to correct baseline for next player
                 const boardX = (canvasRef.current.width - Draw.BOARD_SIZE) / 2;
                 const boardY = (canvasRef.current.height - Draw.BOARD_SIZE) / 2;
-                const bottomBaselineY = boardY + Draw.BOARD_SIZE - Draw.BASE_DISTANCE - Draw.BASE_HEIGHT / 2;
-                const topBaselineY = boardY + Draw.BASE_DISTANCE + Draw.BASE_HEIGHT / 2;
+                const bottomBaselineY =
+                    boardY +
+                    Draw.BOARD_SIZE -
+                    Draw.BASE_DISTANCE -
+                    Draw.BASE_HEIGHT / 2;
+                const topBaselineY =
+                    boardY + Draw.BASE_DISTANCE + Draw.BASE_HEIGHT / 2;
 
                 // determine next player, turn will switch after striker pocketing
-                const nextPlayer = playerRole === "creator" ? "joiner" : "creator";
+                const nextPlayer =
+                    playerRole === "creator" ? "joiner" : "creator";
 
                 // position striker for the next player's turn
                 let newY;
                 if (nextPlayer === playerRole) {
                     // next turn is ours, shouldn't happen with striker pocketing, but just in case
-                    newY = playerRole === "joiner" ? topBaselineY : bottomBaselineY;
+                    newY =
+                        playerRole === "joiner"
+                            ? topBaselineY
+                            : bottomBaselineY;
                 } else {
                     // next turn is opponent's
-                    newY = playerRole === "joiner" ? bottomBaselineY : topBaselineY;
+                    newY =
+                        playerRole === "joiner"
+                            ? bottomBaselineY
+                            : topBaselineY;
                 }
 
                 strikerRef.current.x = boardX + Draw.BOARD_SIZE / 2;
@@ -319,7 +355,7 @@ class Animation {
                     });
                 }
 
-                const currentPlayerData = gameManager.getPlayerData(playerRole);
+                const currentPlayerData = manager.getPlayerData(playerRole);
 
                 // handle queen reset or debt increment
                 if (currentPlayerData.hasPocketedQueen) {
@@ -417,7 +453,8 @@ class Animation {
 
                             // queen pocketed
                             if (coin.color === "red") {
-                                const currentPlayerData = gameManager.getPlayerData(playerRole);
+                                const currentPlayerData =
+                                    manager.getPlayerData(playerRole);
 
                                 // set cover turn to true when queen is pocketed
                                 currentPlayerData.isCoverTurn = true;
@@ -481,18 +518,22 @@ class Animation {
         // check if anything is still moving using consistent threshold
         const isAnythingMoving =
             striker.isMoving(this.MOVEMENT_THRESHOLD) ||
-            coinsRef.current.some((coin) => coin.isMoving(this.MOVEMENT_THRESHOLD)) ||
+            coinsRef.current.some((coin) =>
+                coin.isMoving(this.MOVEMENT_THRESHOLD),
+            ) ||
             this.beingPocketedCoinsRef.length > 0 || // keep animating while coins are being pocketed
             this.beingPocketedStrikerRef !== null; // keep animating while striker is being pocketed
 
         if (isAnythingMoving) {
-            this.animationId = requestAnimationFrame(() => this.animate(params));
+            this.animationId = requestAnimationFrame(() =>
+                this.animate(params),
+            );
         } else {
             this.updateState({ isAnimating: false });
             // Reset Hand state when animation stops
             this.callbacks.setHandState?.({
                 isFlickerActive: false,
-                canPlace: true
+                canPlace: true,
             });
 
             // execute any pending turn actions now that all movement has stopped
@@ -505,7 +546,7 @@ class Animation {
                     canvasRef,
                     playerRole,
                     continuedTurnsRef,
-                    pocketedThisTurnRef
+                    pocketedThisTurnRef,
                 );
                 return; // exit early to avoid game logic interference
             }
@@ -513,7 +554,7 @@ class Animation {
             // reset the last scored coin when animation stops
             lastScoredCoinId = null;
             const playerColor = playerRole === "creator" ? "white" : "black";
-            const currentPlayerData = gameManager.getPlayerData(playerRole);
+            const currentPlayerData = manager.getPlayerData(playerRole);
 
             // check if queen was pocketed this turn
             const queenPocketed = pocketedThisTurnRef.current.some(
@@ -532,7 +573,8 @@ class Animation {
 
                 // add continued turns for non-queen coins pocketed in the same turn as queen
                 if (pocketedOwnColorCoins.length > 0) {
-                    continuedTurnsRef.current += pocketedOwnColorCoins.length - 1;
+                    continuedTurnsRef.current +=
+                        pocketedOwnColorCoins.length - 1;
                     socket.emit("continueTurn", {
                         roomName,
                         continuedTurns: continuedTurnsRef.current,
@@ -552,9 +594,10 @@ class Animation {
 
             // if this is a cover turn attempt (queen was pocketed in previous turn)
             else if (currentPlayerData.isCoverTurn) {
-                const pocketedPlayerColorCoins = pocketedThisTurnRef.current.filter(
-                    (coin) => coin.color === playerColor,
-                );
+                const pocketedPlayerColorCoins =
+                    pocketedThisTurnRef.current.filter(
+                        (coin) => coin.color === playerColor,
+                    );
 
                 // if no coins were pocketed this turn, or no player color coins were pocketed
                 if (
@@ -619,12 +662,14 @@ class Animation {
                     });
 
                     // add continued turns for coins pocketed during successful cover turn
-                    const pocketedOwnColorCoins = pocketedThisTurnRef.current.filter(
-                        (coin) => coin.color === playerColor,
-                    );
+                    const pocketedOwnColorCoins =
+                        pocketedThisTurnRef.current.filter(
+                            (coin) => coin.color === playerColor,
+                        );
 
                     if (pocketedOwnColorCoins.length > 0) {
-                        continuedTurnsRef.current += pocketedOwnColorCoins.length - 1;
+                        continuedTurnsRef.current +=
+                            pocketedOwnColorCoins.length - 1;
                         socket.emit("continueTurn", {
                             roomName,
                             continuedTurns: continuedTurnsRef.current,
@@ -641,12 +686,14 @@ class Animation {
 
             // regular turn logic, no queen involved
             else {
-                const pocketedOwnColorCoins = pocketedThisTurnRef.current.filter(
-                    (coin) => coin.color === playerColor,
-                );
+                const pocketedOwnColorCoins =
+                    pocketedThisTurnRef.current.filter(
+                        (coin) => coin.color === playerColor,
+                    );
 
                 if (pocketedOwnColorCoins.length > 0) {
-                    continuedTurnsRef.current += pocketedOwnColorCoins.length - 1;
+                    continuedTurnsRef.current +=
+                        pocketedOwnColorCoins.length - 1;
                     socket.emit("continueTurn", {
                         roomName,
                         continuedTurns: continuedTurnsRef.current,

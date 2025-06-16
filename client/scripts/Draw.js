@@ -1,5 +1,5 @@
-import Pocket from './Pocket.js';
-import Striker from './Striker.js';
+import Pocket from "./Pocket.js";
+import Striker from "./Striker.js";
 
 /**
  * Drawing utility functions and constants for carrom game
@@ -20,16 +20,21 @@ export class Draw {
      * @param {string} playerRole - Player role ("creator" or "joiner")
      * @param {boolean} overrideCollisionState - Override collision state for real-time feedback
      */
-    static drawBoard(ctx, gameState, playerRole, overrideCollisionState = null) {
+    static drawBoard(
+        ctx,
+        gameState,
+        playerRole,
+        overrideCollisionState = null,
+    ) {
         ctx.save();
-        
+
         // Rotate canvas for joiner player
         if (playerRole === "joiner") {
             ctx.translate(ctx.canvas.width / 2, ctx.canvas.height / 2);
             ctx.rotate(Math.PI);
             ctx.translate(-ctx.canvas.width / 2, -ctx.canvas.height / 2);
         }
-        
+
         ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
         const frameX = (ctx.canvas.width - Draw.FRAME_SIZE) / 2;
@@ -40,19 +45,23 @@ export class Draw {
         // Initialize striker if not already done
         if (!gameState.strikerRef.current) {
             const initialX = boardX + Draw.BOARD_SIZE / 2;
-            const initialY = boardY + Draw.BOARD_SIZE - Draw.BASE_DISTANCE - Draw.BASE_HEIGHT / 2;
+            const initialY =
+                boardY +
+                Draw.BOARD_SIZE -
+                Draw.BASE_DISTANCE -
+                Draw.BASE_HEIGHT / 2;
             gameState.strikerRef.current = new Striker(initialX, initialY);
         }
 
         // Draw frame and board
         Draw._drawFrameAndBoard(ctx, frameX, frameY, boardX, boardY);
-        
+
         // Draw pockets
         Draw._drawPockets(ctx, boardX, boardY);
-        
+
         // Draw base lines
         Draw._drawBaseLines(ctx, boardX, boardY);
-        
+
         // Draw all coins
         gameState.coinsRef.current.forEach((coin) => coin.draw(ctx));
 
@@ -86,7 +95,10 @@ export class Draw {
             [boardX + pocketRadius, boardY + pocketRadius],
             [boardX + Draw.BOARD_SIZE - pocketRadius, boardY + pocketRadius],
             [boardX + pocketRadius, boardY + Draw.BOARD_SIZE - pocketRadius],
-            [boardX + Draw.BOARD_SIZE - pocketRadius, boardY + Draw.BOARD_SIZE - pocketRadius],
+            [
+                boardX + Draw.BOARD_SIZE - pocketRadius,
+                boardY + Draw.BOARD_SIZE - pocketRadius,
+            ],
         ];
 
         pocketPositions.forEach(([x, y]) => {
@@ -105,7 +117,11 @@ export class Draw {
             {
                 side: "bottom",
                 x: boardX + (Draw.BOARD_SIZE - Draw.BASE_WIDTH) / 2,
-                y: boardY + Draw.BOARD_SIZE - Draw.BASE_DISTANCE - Draw.BASE_HEIGHT,
+                y:
+                    boardY +
+                    Draw.BOARD_SIZE -
+                    Draw.BASE_DISTANCE -
+                    Draw.BASE_HEIGHT,
             },
             {
                 side: "top",
@@ -119,7 +135,11 @@ export class Draw {
             },
             {
                 side: "right",
-                x: boardX + Draw.BOARD_SIZE - Draw.BASE_DISTANCE - Draw.BASE_HEIGHT,
+                x:
+                    boardX +
+                    Draw.BOARD_SIZE -
+                    Draw.BASE_DISTANCE -
+                    Draw.BASE_HEIGHT,
                 y: boardY + (Draw.BOARD_SIZE - Draw.BASE_WIDTH) / 2,
             },
         ];
@@ -151,7 +171,7 @@ export class Draw {
             Math.PI * 2,
         );
         ctx.stroke();
-        
+
         ctx.beginPath();
         ctx.arc(
             pos.x + baseRadius,
@@ -161,15 +181,18 @@ export class Draw {
             Math.PI * 2,
         );
         ctx.stroke();
-        
+
         ctx.beginPath();
         ctx.moveTo(pos.x, pos.y + baseRadius);
         ctx.lineTo(pos.x, pos.y + Draw.BASE_WIDTH - baseRadius);
         ctx.stroke();
-        
+
         ctx.beginPath();
         ctx.moveTo(pos.x + Draw.BASE_HEIGHT, pos.y + baseRadius);
-        ctx.lineTo(pos.x + Draw.BASE_HEIGHT, pos.y + Draw.BASE_WIDTH - baseRadius);
+        ctx.lineTo(
+            pos.x + Draw.BASE_HEIGHT,
+            pos.y + Draw.BASE_WIDTH - baseRadius,
+        );
         ctx.stroke();
     }
 
@@ -187,7 +210,7 @@ export class Draw {
             Math.PI * 2,
         );
         ctx.stroke();
-        
+
         ctx.beginPath();
         ctx.arc(
             pos.x + Draw.BASE_WIDTH - baseRadius,
@@ -197,15 +220,18 @@ export class Draw {
             Math.PI * 2,
         );
         ctx.stroke();
-        
+
         ctx.beginPath();
         ctx.moveTo(pos.x + baseRadius, pos.y);
         ctx.lineTo(pos.x + Draw.BASE_WIDTH - baseRadius, pos.y);
         ctx.stroke();
-        
+
         ctx.beginPath();
         ctx.moveTo(pos.x + baseRadius, pos.y + Draw.BASE_HEIGHT);
-        ctx.lineTo(pos.x + Draw.BASE_WIDTH - baseRadius, pos.y + Draw.BASE_HEIGHT);
+        ctx.lineTo(
+            pos.x + Draw.BASE_WIDTH - baseRadius,
+            pos.y + Draw.BASE_HEIGHT,
+        );
         ctx.stroke();
     }
 
@@ -221,7 +247,7 @@ export class Draw {
             overrideCollisionState !== null
                 ? overrideCollisionState
                 : gameState.isStrikerColliding;
-        
+
         ctx.save();
 
         // Set opacity based on collision state
@@ -283,13 +309,13 @@ export class Draw {
         let d = Math.hypot(dx, dy);
         let capX = gameState.flick.endX;
         let capY = gameState.flick.endY;
-        
+
         if (d > gameState.flickMaxLength) {
             const scale = gameState.flickMaxLength / d;
             capX = gameState.flick.startX + dx * scale;
             capY = gameState.flick.startY + dy * scale;
         }
-        
+
         ctx.lineTo(capX, capY);
         ctx.stroke();
         ctx.restore();
@@ -303,7 +329,7 @@ export class Draw {
     static getBoardCoordinates(ctx) {
         return {
             boardX: (ctx.canvas.width - Draw.BOARD_SIZE) / 2,
-            boardY: (ctx.canvas.height - Draw.BOARD_SIZE) / 2
+            boardY: (ctx.canvas.height - Draw.BOARD_SIZE) / 2,
         };
     }
 
@@ -315,12 +341,16 @@ export class Draw {
      */
     static getStrikerInitialPosition(ctx, playerRole) {
         const { boardX, boardY } = Draw.getBoardCoordinates(ctx);
-        const bottomBaselineY = boardY + Draw.BOARD_SIZE - Draw.BASE_DISTANCE - Draw.BASE_HEIGHT / 2;
+        const bottomBaselineY =
+            boardY +
+            Draw.BOARD_SIZE -
+            Draw.BASE_DISTANCE -
+            Draw.BASE_HEIGHT / 2;
         const topBaselineY = boardY + Draw.BASE_DISTANCE + Draw.BASE_HEIGHT / 2;
-        
+
         return {
             x: boardX + Draw.BOARD_SIZE / 2,
-            y: playerRole === "joiner" ? topBaselineY : bottomBaselineY
+            y: playerRole === "joiner" ? topBaselineY : bottomBaselineY,
         };
     }
 }

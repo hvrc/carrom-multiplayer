@@ -1,27 +1,28 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import socket from './socket.js';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import socket from "./socket.js";
 
-export default function MainMenu() {
-
+export default function Menu() {
     // socket.io handling room creation and joining
 
     // state variables
     // navigate is used to navigate to the room
     // use effect checks for saved room, clears storage if none, and cleans up socket listeners on exit
-    const [joinUsername, setJoinUsername] = useState('');
-    const [joinRoomName, setJoinRoomName] = useState('');
-    const [createUsername, setCreateUsername] = useState('');
-    const [createRoomName, setCreateRoomName] = useState('');
-    const [error, setError] = useState('');
+    const [joinUsername, setJoinUsername] = useState("");
+    const [joinRoomName, setJoinRoomName] = useState("");
+    const [createUsername, setCreateUsername] = useState("");
+    const [createRoomName, setCreateRoomName] = useState("");
+    const [error, setError] = useState("");
     const navigate = useNavigate();
 
     useEffect(() => {
-        const roomName = localStorage.getItem('roomName');
-        if (!roomName) { localStorage.clear(); }
+        const roomName = localStorage.getItem("roomName");
+        if (!roomName) {
+            localStorage.clear();
+        }
         return () => {
-            socket.off('playerJoined');
-            socket.off('error');
+            socket.off("playerJoined");
+            socket.off("error");
         };
     }, []);
 
@@ -33,34 +34,43 @@ export default function MainMenu() {
     // listens for player joined event
     const handleCreateRoom = () => {
         if (!createUsername || !createRoomName) {
-            setError('Please enter a username and room name');
+            setError("Please enter a username and room name");
             return;
         }
 
-        if (!socket.connected) { socket.connect(); }
-        const clientId = sessionStorage.getItem('clientId');
+        if (!socket.connected) {
+            socket.connect();
+        }
+        const clientId = sessionStorage.getItem("clientId");
 
         if (!clientId) {
-            setError('Refresh and retry');
+            setError("Refresh and retry");
             return;
         }
 
-        socket.emit('createRoom', { roomName: createRoomName, username: createUsername, clientId });
+        socket.emit("createRoom", {
+            roomName: createRoomName,
+            username: createUsername,
+            clientId,
+        });
 
         const handlePlayerJoined = (data) => {
-            if (data.username === createUsername && data.roomName === createRoomName) {
-                localStorage.setItem('username', createUsername);
-                localStorage.setItem('roomName', createRoomName);
-                localStorage.setItem('playerRole', 'creator');
-                socket.off('playerJoined', handlePlayerJoined);
+            if (
+                data.username === createUsername &&
+                data.roomName === createRoomName
+            ) {
+                localStorage.setItem("username", createUsername);
+                localStorage.setItem("roomName", createRoomName);
+                localStorage.setItem("playerRole", "creator");
+                socket.off("playerJoined", handlePlayerJoined);
                 navigate(`/${createRoomName}`);
             }
         };
 
-        socket.on('playerJoined', handlePlayerJoined);
-        socket.on('error', (msg) => {
+        socket.on("playerJoined", handlePlayerJoined);
+        socket.on("error", (msg) => {
             setError(msg);
-            socket.off('playerJoined', handlePlayerJoined);
+            socket.off("playerJoined", handlePlayerJoined);
         });
     };
 
@@ -72,34 +82,43 @@ export default function MainMenu() {
     // listens for player joined event
     const handleJoinRoom = () => {
         if (!joinUsername || !joinRoomName) {
-            setError('Please enter a username and room name');
+            setError("Please enter a username and room name");
             return;
         }
 
-        if (!socket.connected) { socket.connect(); }
-        const clientId = sessionStorage.getItem('clientId');
+        if (!socket.connected) {
+            socket.connect();
+        }
+        const clientId = sessionStorage.getItem("clientId");
 
         if (!clientId) {
-            setError('Refresh and retry');
+            setError("Refresh and retry");
             return;
         }
-        
-        socket.emit('joinRoom', { roomName: joinRoomName, username: joinUsername, clientId });
-        
+
+        socket.emit("joinRoom", {
+            roomName: joinRoomName,
+            username: joinUsername,
+            clientId,
+        });
+
         const handlePlayerJoined = (data) => {
-            if (data.username === joinUsername && data.roomName === joinRoomName) {
-                localStorage.setItem('username', joinUsername);
-                localStorage.setItem('roomName', joinRoomName);
-                localStorage.setItem('playerRole', 'joiner');
-                socket.off('playerJoined', handlePlayerJoined);
+            if (
+                data.username === joinUsername &&
+                data.roomName === joinRoomName
+            ) {
+                localStorage.setItem("username", joinUsername);
+                localStorage.setItem("roomName", joinRoomName);
+                localStorage.setItem("playerRole", "joiner");
+                socket.off("playerJoined", handlePlayerJoined);
                 navigate(`/${joinRoomName}`);
             }
         };
 
-        socket.on('playerJoined', handlePlayerJoined);
-        socket.on('error', (msg) => {
+        socket.on("playerJoined", handlePlayerJoined);
+        socket.on("error", (msg) => {
             setError(msg);
-            socket.off('playerJoined', handlePlayerJoined);
+            socket.off("playerJoined", handlePlayerJoined);
         });
     };
 

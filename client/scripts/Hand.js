@@ -1,4 +1,4 @@
-import Physics from './Physics.js';
+import Physics from "./Physics.js";
 
 /**
  * Hand interaction manager for carrom game
@@ -38,7 +38,7 @@ export class Hand {
         onStrikerMove,
         onCollisionUpdate,
         onAnimationStart,
-        onRedraw
+        onRedraw,
     }) {
         this.onStateChange = onStateChange;
         this.onStrikerMove = onStrikerMove;
@@ -57,7 +57,7 @@ export class Hand {
                 isPlacing: this.isPlacing,
                 canPlace: this.canPlace,
                 isFlickerActive: this.isFlickerActive,
-                flick: { ...this.flick }
+                flick: { ...this.flick },
             });
         }
     }
@@ -73,9 +73,9 @@ export class Hand {
 
         this._updateState({
             canPlace: false,
-            isFlickerActive: true
+            isFlickerActive: true,
         });
-        
+
         setTimeout(() => {
             this._updateState({ canPlace: true });
         }, 0);
@@ -89,7 +89,7 @@ export class Hand {
             canPlace: true,
             isPlacing: false,
             isFlickerActive: false,
-            flick: { active: false, startX: 0, startY: 0, endX: 0, endY: 0 }
+            flick: { active: false, startX: 0, startY: 0, endX: 0, endY: 0 },
         });
 
         if (strikerRef.current) {
@@ -114,13 +114,10 @@ export class Hand {
     /**
      * Handle flick mouse down event
      */
-    handleFlickMouseDown(e, {
-        isMyTurn,
-        strikerRef,
-        isStrikerColliding,
-        canvasRef,
-        playerRole
-    }) {
+    handleFlickMouseDown(
+        e,
+        { isMyTurn, strikerRef, isStrikerColliding, canvasRef, playerRole },
+    ) {
         if (!isMyTurn || !strikerRef.current || !this.isFlickerActive) return;
 
         // prevent flicking if striker is colliding with coins
@@ -144,53 +141,60 @@ export class Hand {
                 startY: strikerRef.current.y,
                 endX: x,
                 endY: y,
-            }
+            },
         });
     }
 
     /**
      * Handle flick mouse move event
      */
-    handleFlickMouseMove(e, {
-        isMyTurn,
-        strikerRef,
-        canvasRef,
-        playerRole
-    }) {
-        if (!isMyTurn || !strikerRef.current || !this.isFlickerActive || !this.flick.active) {
+    handleFlickMouseMove(e, { isMyTurn, strikerRef, canvasRef, playerRole }) {
+        if (
+            !isMyTurn ||
+            !strikerRef.current ||
+            !this.isFlickerActive ||
+            !this.flick.active
+        ) {
             return;
         }
 
         const rect = canvasRef.current.getBoundingClientRect();
         let x = e.clientX - rect.left;
         let y = e.clientY - rect.top;
-        
+
         if (playerRole === "joiner") {
             x = canvasRef.current.width - x;
             y = canvasRef.current.height - y;
         }
 
         this._updateState({
-            flick: { ...this.flick, endX: x, endY: y }
+            flick: { ...this.flick, endX: x, endY: y },
         });
     }
 
     /**
      * Handle flick mouse up event
      */
-    handleFlickMouseUp(e, {
-        isMyTurn,
-        strikerRef,
-        isStrikerColliding
-    }) {
-        if (!isMyTurn || !strikerRef.current || !this.isFlickerActive || !this.flick.active) {
+    handleFlickMouseUp(e, { isMyTurn, strikerRef, isStrikerColliding }) {
+        if (
+            !isMyTurn ||
+            !strikerRef.current ||
+            !this.isFlickerActive ||
+            !this.flick.active
+        ) {
             return;
         }
 
         // prevent execution if striker is colliding with coins
         if (isStrikerColliding) {
             this._updateState({
-                flick: { active: false, startX: 0, startY: 0, endX: 0, endY: 0 }
+                flick: {
+                    active: false,
+                    startX: 0,
+                    startY: 0,
+                    endX: 0,
+                    endY: 0,
+                },
             });
             return;
         }
@@ -199,7 +203,7 @@ export class Hand {
         let dx = this.flick.startX - this.flick.endX;
         let dy = this.flick.startY - this.flick.endY;
         const dist = Math.hypot(dx, dy);
-        
+
         if (dist > Hand.FLICK_MAX_LENGTH) {
             const scale = Hand.FLICK_MAX_LENGTH / dist;
             dx *= scale;
@@ -211,7 +215,7 @@ export class Hand {
         strikerRef.current.isStrikerMoving = true;
 
         this._updateState({
-            flick: { active: false, startX: 0, startY: 0, endX: 0, endY: 0 }
+            flick: { active: false, startX: 0, startY: 0, endX: 0, endY: 0 },
         });
 
         // Notify parent to start animation
@@ -223,14 +227,17 @@ export class Hand {
     /**
      * Handle mouse down event (unified handler)
      */
-    handleMouseDown(e, {
-        isAnimating,
-        isMyTurn,
-        strikerRef,
-        canvasRef,
-        playerRole,
-        isStrikerColliding
-    }) {
+    handleMouseDown(
+        e,
+        {
+            isAnimating,
+            isMyTurn,
+            strikerRef,
+            canvasRef,
+            playerRole,
+            isStrikerColliding,
+        },
+    ) {
         // block all input when animation is active
         if (isAnimating) return;
 
@@ -240,23 +247,23 @@ export class Hand {
                 strikerRef,
                 isStrikerColliding,
                 canvasRef,
-                playerRole
+                playerRole,
             });
         } else if (this.canPlace) {
             if (!isMyTurn || !strikerRef.current) return;
-            
+
             const rect = canvasRef.current.getBoundingClientRect();
             let x = e.clientX - rect.left;
             let y = e.clientY - rect.top;
-            
+
             if (playerRole === "joiner") {
                 x = canvasRef.current.width - x;
                 y = canvasRef.current.height - y;
             }
-            
+
             const dx = x - strikerRef.current.x;
             const dy = y - strikerRef.current.y;
-            
+
             if (Math.hypot(dx, dy) < 30) {
                 this._updateState({ isPlacing: true });
                 strikerRef.current.isPlacing = true;
@@ -267,16 +274,19 @@ export class Hand {
     /**
      * Handle mouse move event (unified handler)
      */
-    handleMouseMove(e, {
-        isAnimating,
-        isMyTurn,
-        strikerRef,
-        canvasRef,
-        playerRole,
-        coinsRef,
-        socket,
-        roomName
-    }) {
+    handleMouseMove(
+        e,
+        {
+            isAnimating,
+            isMyTurn,
+            strikerRef,
+            canvasRef,
+            playerRole,
+            coinsRef,
+            socket,
+            roomName,
+        },
+    ) {
         // block all input when animation is active
         if (isAnimating) return;
 
@@ -285,13 +295,18 @@ export class Hand {
                 isMyTurn,
                 strikerRef,
                 canvasRef,
-                playerRole
+                playerRole,
             });
-        } else if (this.isPlacing && this.canPlace && isMyTurn && strikerRef.current) {
+        } else if (
+            this.isPlacing &&
+            this.canPlace &&
+            isMyTurn &&
+            strikerRef.current
+        ) {
             const rect = canvasRef.current.getBoundingClientRect();
             let x = e.clientX - rect.left;
             let y = e.clientY - rect.top;
-            
+
             if (playerRole === "joiner") {
                 x = canvasRef.current.width - x;
                 y = canvasRef.current.height - y;
@@ -305,8 +320,8 @@ export class Hand {
 
             // check for collision in real-time during drag
             const isCurrentlyColliding = Physics.checkStrikerCoinCollision(
-                strikerRef.current, 
-                coinsRef.current
+                strikerRef.current,
+                coinsRef.current,
             );
 
             // Notify parent about collision state change
@@ -344,16 +359,19 @@ export class Hand {
     /**
      * Handle mouse up event (unified handler)
      */
-    handleMouseUp(e, {
-        isAnimating,
-        isMyTurn,
-        strikerRef,
-        isStrikerColliding,
-        coinsRef,
-        socket,
-        roomName,
-        playerRole
-    }) {
+    handleMouseUp(
+        e,
+        {
+            isAnimating,
+            isMyTurn,
+            strikerRef,
+            isStrikerColliding,
+            coinsRef,
+            socket,
+            roomName,
+            playerRole,
+        },
+    ) {
         // block all input when animation is active
         if (isAnimating) return;
 
@@ -361,11 +379,11 @@ export class Hand {
             this.handleFlickMouseUp(e, {
                 isMyTurn,
                 strikerRef,
-                isStrikerColliding
+                isStrikerColliding,
             });
         } else if (this.isPlacing) {
             this._updateState({ isPlacing: false });
-            
+
             if (strikerRef.current) {
                 strikerRef.current.isPlacing = false;
             }
@@ -373,10 +391,10 @@ export class Hand {
             // emit final collision state when placement ends
             if (socket && roomName) {
                 const finalCollisionState = Physics.checkStrikerCoinCollision(
-                    strikerRef.current, 
-                    coinsRef.current
+                    strikerRef.current,
+                    coinsRef.current,
                 );
-                
+
                 socket.emit("strikerCollisionUpdate", {
                     roomName,
                     playerRole,
@@ -395,7 +413,7 @@ export class Hand {
             canPlace: this.canPlace,
             isFlickerActive: this.isFlickerActive,
             flick: { ...this.flick },
-            flickMaxLength: Hand.FLICK_MAX_LENGTH
+            flickMaxLength: Hand.FLICK_MAX_LENGTH,
         };
     }
 
@@ -407,7 +425,7 @@ export class Hand {
             isPlacing: false,
             canPlace: true,
             isFlickerActive: false,
-            flick: { active: false, startX: 0, startY: 0, endX: 0, endY: 0 }
+            flick: { active: false, startX: 0, startY: 0, endX: 0, endY: 0 },
         });
     }
 }

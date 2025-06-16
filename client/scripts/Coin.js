@@ -1,12 +1,12 @@
 // coin state management ?
 
-import Pocket from './Pocket.js';
-import Physics from './Physics.js';
+import Pocket from "./Pocket.js";
+import Physics from "./Physics.js";
 
 export default class Coin {
     constructor({
         id,
-        color = 'white',
+        color = "white",
         radius = 15,
         coinMass = 1,
         x = 0,
@@ -14,9 +14,8 @@ export default class Coin {
         velocity = { x: 0, y: 0 },
         acceleration = { x: 0, y: 0 },
         restitution = 0.5,
-        friction = 0.98
-    }) 
-    {
+        friction = 0.98,
+    }) {
         this.id = id;
         this.color = color;
         this.radius = radius;
@@ -27,7 +26,7 @@ export default class Coin {
         this.acceleration = { ...acceleration };
         this.restitution = restitution;
         this.friction = friction;
-        
+
         // pocketing animation state
         this.beingPocketed = false;
         this.pocketTarget = null;
@@ -35,44 +34,44 @@ export default class Coin {
         this.pocketAnimationSpeed = 0.08;
         this.originalRadius = radius;
         this.startPocketPosition = { x: 0, y: 0 };
-    }    
+    }
     // start pocketing animation
     startPocketing(pocketX, pocketY) {
         Pocket.startPocketing(this, pocketX, pocketY);
     }
-    
+
     // update pocketing animation
     updatePocketAnimation() {
         return Pocket.updatePocketAnimation(this);
     }
-    
+
     // reset pocketing state (for safety, though coins are usually removed)
     resetPocketingState() {
         Pocket.resetPocketingState(this);
     }
-    
+
     draw(ctx) {
         ctx.save();
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.strokeStyle = 'black';
+        ctx.strokeStyle = "black";
 
-        if (this.color === 'black') {
-            ctx.fillStyle = 'black';
+        if (this.color === "black") {
+            ctx.fillStyle = "black";
             ctx.fill();
-        } else if (this.color === 'red') {
-            ctx.fillStyle = 'red';
+        } else if (this.color === "red") {
+            ctx.fillStyle = "red";
             ctx.fill();
         }
-        
+
         ctx.stroke();
         ctx.restore();
     }
-    
+
     update(stopThreshold = 0.2) {
         // don't update position if being pocketed, animation handles position
         if (this.beingPocketed) return;
-        
+
         this.velocity.x += this.acceleration.x;
         this.velocity.y += this.acceleration.y;
         this.x += this.velocity.x;
@@ -85,16 +84,22 @@ export default class Coin {
         this.acceleration.y = 0;
 
         // force stop when velocity is below threshold (similar to Striker)
-        if (Math.abs(this.velocity.x) <= stopThreshold && Math.abs(this.velocity.y) <= stopThreshold) {
+        if (
+            Math.abs(this.velocity.x) <= stopThreshold &&
+            Math.abs(this.velocity.y) <= stopThreshold
+        ) {
             this.velocity.x = 0;
             this.velocity.y = 0;
         }
-    }    // Keep isMoving as a METHOD, not a property
+    } // Keep isMoving as a METHOD, not a property
     isMoving(threshold = 0.2) {
         // if being pocketed, consider it as moving until animation completes
         if (this.beingPocketed) return true;
-        return Math.abs(this.velocity.x) > threshold || Math.abs(this.velocity.y) > threshold;
-    }    // Handle coin border collision with board boundaries
+        return (
+            Math.abs(this.velocity.x) > threshold ||
+            Math.abs(this.velocity.y) > threshold
+        );
+    } // Handle coin border collision with board boundaries
     handleBorderCollision(boardX, boardY, boardSize) {
         return Physics.handleBorderCollision(this, boardX, boardY, boardSize);
     }
@@ -148,7 +153,9 @@ export default class Coin {
         coins.push(queenCoin);
 
         return coins;
-    }    // Static method to check if an object is near any pocket
+    }
+    
+    // Static method to check if an object is near any pocket
     static isNearAnyPocket(x, y, pockets, threshold = 60) {
         return Pocket.isNearAnyPocket(x, y, pockets, threshold);
     }
