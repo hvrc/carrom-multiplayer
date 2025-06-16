@@ -72,6 +72,5 @@ flickPower
 
 Collision Functions:
 
-checkStrikerCoinCollision
 setIsStrikerColliding
 isStrikerColliding (state)

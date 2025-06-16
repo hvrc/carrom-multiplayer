@@ -3,6 +3,7 @@ import Striker from "./Striker";
 import Coin from "./Coin";
 import Physics from "./Physics";
 import Pocket from "./Pocket";
+import Draw from "./Draw";
 
 function GameCanvas({
     isMyTurn = true,
@@ -49,25 +50,17 @@ function GameCanvas({
     const beingPocketedStrikerRef = useRef(null);
 
     const flickMaxLength = 120;
-    const flickPower = 0.4;
+    const flickPower = 0.4;    // consistent movement threshold for both striker and coins
+    const MOVEMENT_THRESHOLD = 0.21;
 
-    // consistent movement threshold for both striker and coins
-    const MOVEMENT_THRESHOLD = 0.21;    const frameSize = 900;
-    const boardSize = 750;
-    const baseDistance = 102;
-    const baseHeight = 32;
-    const baseWidth = 470;
-    const centerCircleDiameter = 170;    // add coins at the center of the board
+    // add coins at the center of the board
     // place 2 white and 2 black coins, queen
-    
-    useEffect(() => {
+      useEffect(() => {
         if (!canvasRef.current) return;
-        const boardX = (canvasRef.current.width - boardSize) / 2;
-        const boardY = (canvasRef.current.height - boardSize) / 2;
-
-        // Center position for coin formation
-        const centerX = boardX + boardSize / 2;
-        const centerY = boardY + boardSize / 2;
+        const boardX = (canvasRef.current.width - Draw.BOARD_SIZE) / 2;
+        const boardY = (canvasRef.current.height - Draw.BOARD_SIZE) / 2;        // Center position for coin formation
+        const centerX = boardX + Draw.BOARD_SIZE / 2;
+        const centerY = boardY + Draw.BOARD_SIZE / 2;
 
         // Create coin formation using the static method from Coin class
         const coins = Coin.createCoinFormation(centerX, centerY);
@@ -88,15 +81,13 @@ function GameCanvas({
         if (!strikerRef.current) return;
 
         const ctx = canvasRef.current?.getContext("2d");
-        if (!ctx) return;
-
-        const boardX = (ctx.canvas.width - boardSize) / 2;
-        const boardY = (ctx.canvas.height - boardSize) / 2;
+        if (!ctx) return;        const boardX = (ctx.canvas.width - Draw.BOARD_SIZE) / 2;
+        const boardY = (ctx.canvas.height - Draw.BOARD_SIZE) / 2;
         const bottomBaselineY =
-            boardY + boardSize - baseDistance - baseHeight / 2;
-        const topBaselineY = boardY + baseDistance + baseHeight / 2;
+            boardY + Draw.BOARD_SIZE - Draw.BASE_DISTANCE - Draw.BASE_HEIGHT / 2;
+        const topBaselineY = boardY + Draw.BASE_DISTANCE + Draw.BASE_HEIGHT / 2;
 
-        let newX = boardX + boardSize / 2;
+        let newX = boardX + Draw.BOARD_SIZE / 2;
         let newY;
 
         if (actionData.type === "turnSwitch") {
@@ -133,219 +124,25 @@ function GameCanvas({
         strikerRef.current.isStrikerMoving = false;
 
         // clear pocketed coins for new turn
-        pocketedThisTurnRef.current = [];
-
-        // redraw the board
-        drawBoard(ctx);    }
-    
-    const drawBoard = (ctx, overrideCollisionState = null) => {
-        ctx.save();
-        if (playerRole === "joiner") {
-            ctx.translate(ctx.canvas.width / 2, ctx.canvas.height / 2);
-            ctx.rotate(Math.PI);
-            ctx.translate(-ctx.canvas.width / 2, -ctx.canvas.height / 2);
-        }
-        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-        const frameX = (ctx.canvas.width - frameSize) / 2;
-        const frameY = (ctx.canvas.height - frameSize) / 2;
-        const boardX = (ctx.canvas.width - boardSize) / 2;
-        const boardY = (ctx.canvas.height - boardSize) / 2;
-
-        // initialize striker if not already done
-        if (!strikerRef.current) {
-            const initialX = boardX + boardSize / 2;
-            const initialY = boardY + boardSize - baseDistance - baseHeight / 2;
-            strikerRef.current = new Striker(initialX, initialY);
-        }
-
-        // draw frame and board
-        ctx.strokeStyle = "black";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(frameX, frameY, frameSize, frameSize);
-        ctx.strokeRect(boardX, boardY, boardSize, boardSize);        // draw pockets
-        const pocketRadius = Pocket.POCKET_DIAMETER / 2;
-        const pocketPositions = [
-            [boardX + pocketRadius, boardY + pocketRadius],
-            [boardX + boardSize - pocketRadius, boardY + pocketRadius],
-            [boardX + pocketRadius, boardY + boardSize - pocketRadius],
-            [
-                boardX + boardSize - pocketRadius,
-                boardY + boardSize - pocketRadius,
-            ],
-        ];
-
-        pocketPositions.forEach(([x, y]) => {
-            ctx.beginPath();
-            ctx.arc(x, y, pocketRadius, 0, Math.PI * 2);
-            ctx.stroke();
-        });
-
-        // draw base lines
-        const basePositions = [
-            {
-                side: "bottom",
-                x: boardX + (boardSize - baseWidth) / 2,
-                y: boardY + boardSize - baseDistance - baseHeight,
-            },
-            {
-                side: "top",
-                x: boardX + (boardSize - baseWidth) / 2,
-                y: boardY + baseDistance,
-            },
-            {
-                side: "left",
-                x: boardX + baseDistance,
-                y: boardY + (boardSize - baseWidth) / 2,
-            },
-            {
-                side: "right",
-                x: boardX + boardSize - baseDistance - baseHeight,
-                y: boardY + (boardSize - baseWidth) / 2,
-            },
-        ];
-
-        // draw moons and base lines
-        basePositions.forEach((pos) => {
-            const isVertical = pos.side === "left" || pos.side === "right";
-            const baseRadius = baseHeight / 2;
-
-            if (isVertical) {
-                ctx.beginPath();
-                ctx.arc(
-                    pos.x + baseRadius,
-                    pos.y + baseRadius,
-                    baseRadius,
-                    0,
-                    Math.PI * 2,
-                );
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.arc(
-                    pos.x + baseRadius,
-                    pos.y + baseWidth - baseRadius,
-                    baseRadius,
-                    0,
-                    Math.PI * 2,
-                );
-
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(pos.x, pos.y + baseRadius);
-                ctx.lineTo(pos.x, pos.y + baseWidth - baseRadius);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(pos.x + baseHeight, pos.y + baseRadius);
-                ctx.lineTo(pos.x + baseHeight, pos.y + baseWidth - baseRadius);
-                ctx.stroke();
-            } else {
-                ctx.beginPath();
-                ctx.arc(
-                    pos.x + baseRadius,
-                    pos.y + baseRadius,
-                    baseRadius,
-                    0,
-                    Math.PI * 2,
-                );
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.arc(
-                    pos.x + baseWidth - baseRadius,
-                    pos.y + baseRadius,
-                    baseRadius,
-                    0,
-                    Math.PI * 2,
-                );
-
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(pos.x + baseRadius, pos.y);
-                ctx.lineTo(pos.x + baseWidth - baseRadius, pos.y);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(pos.x + baseRadius, pos.y + baseHeight);
-                ctx.lineTo(pos.x + baseWidth - baseRadius, pos.y + baseHeight);
-                ctx.stroke();
-            }
-        });
-
-        // draw all coins first
-        coinsRef.current.forEach((coin) => coin.draw(ctx));
-
-        // draw striker with appropriate opacity based on collision state
-        if (strikerRef.current) {
-            // use override collision state if provided (for real-time feedback during drag), otherwise use React state
-            const currentCollisionState =
-                overrideCollisionState !== null
-                    ? overrideCollisionState
-                    : isStrikerColliding;
-            ctx.save();
-
-            // set opacity based on collision state - lower opacity when colliding
-            if (currentCollisionState) {
-                ctx.globalAlpha = 0.4; // 40% opacity when colliding
-            } else {
-                ctx.globalAlpha = 1.0; // full opacity when not colliding
-            }
-
-            // draw striker with consistent border style
-            ctx.beginPath();
-            ctx.arc(
-                strikerRef.current.x,
-                strikerRef.current.y,
-                strikerRef.current.radius,
-                0,
-                Math.PI * 2,
-            );
-            ctx.strokeStyle = "black";
-            ctx.lineWidth = 1;
-            ctx.stroke();
-
-            ctx.restore();
-        }
-
-        // draw flick line if active
-        if (isFlickerActive && flick.active) {
-            ctx.save();
-
-            // use override collision state if provided, otherwise use React state
-            const currentCollisionState =
-                overrideCollisionState !== null
-                    ? overrideCollisionState
-                    : isStrikerColliding;
-
-            // set opacity and style based on collision state
-            if (currentCollisionState) {
-                ctx.globalAlpha = 0.4; // reduced opacity when colliding
-                ctx.strokeStyle = "black";
-                ctx.lineWidth = 1;
-                ctx.setLineDash([5, 5]); // dashed line to indicate disabled state
-            } else {
-                ctx.globalAlpha = 1.0; // full opacity when not colliding
-                ctx.strokeStyle = "black";
-                ctx.lineWidth = 1;
-            }
-
-            ctx.beginPath();
-            ctx.moveTo(flick.startX, flick.startY);
-
-            // cap the line at max length
-            let dx = flick.endX - flick.startX;
-            let dy = flick.endY - flick.startY;
-            let d = Math.hypot(dx, dy);
-            let capX = flick.endX,
-                capY = flick.endY;
-            if (d > flickMaxLength) {
-                const scale = flickMaxLength / d;
-                capX = flick.startX + dx * scale;
-                capY = flick.startY + dy * scale;
-            }
-            ctx.lineTo(capX, capY);
-            ctx.stroke();
-            ctx.restore();
-        }
-        ctx.restore();
-    };
+        pocketedThisTurnRef.current = [];        // redraw the board
+        const gameState = {
+            strikerRef,
+            coinsRef,
+            isStrikerColliding,
+            isFlickerActive,
+            flick,
+            flickMaxLength
+        };
+        Draw.drawBoard(ctx, gameState, playerRole);    }    
+    // Helper function to create game state object for drawing
+    const createGameState = () => ({
+        strikerRef,
+        coinsRef,
+        isStrikerColliding,
+        isFlickerActive,
+        flick,
+        flickMaxLength
+    });
 
     // show place button immediately after clicking flick
     const handleFlick = () => {
@@ -528,9 +325,8 @@ function GameCanvas({
                 });
             }
 
-            const ctx = canvasRef.current.getContext("2d");
-            // pass the real-time collision state to drawBoard for immediate visual feedback
-            drawBoard(ctx, isCurrentlyColliding);
+            const ctx = canvasRef.current.getContext("2d");            // pass the real-time collision state to drawBoard for immediate visual feedback
+            Draw.drawBoard(ctx, createGameState(), playerRole, isCurrentlyColliding);
         }
     };
 
@@ -560,19 +356,18 @@ function GameCanvas({
         let lastScoredCoinId = null;
 
         function animate() {
-            if (!strikerRef.current || !isMyTurn) return;
-            const boardX = (canvasRef.current.width - boardSize) / 2;
-            const boardY = (canvasRef.current.height - boardSize) / 2;
+            if (!strikerRef.current || !isMyTurn) return;            const boardX = (canvasRef.current.width - Draw.BOARD_SIZE) / 2;
+            const boardY = (canvasRef.current.height - Draw.BOARD_SIZE) / 2;
 
             strikerRef.current.update(
                 0.98,
                 MOVEMENT_THRESHOLD,
                 boardX,
                 boardY,
-                boardSize,
-            );            coinsRef.current.forEach((coin) => {
+                Draw.BOARD_SIZE,
+            );coinsRef.current.forEach((coin) => {
                 coin.update();
-                coin.handleBorderCollision(boardX, boardY, boardSize);
+                coin.handleBorderCollision(boardX, boardY, Draw.BOARD_SIZE);
             });            coinsRef.current.forEach((coin) => {
                 Physics.resolveCircleCollision(strikerRef.current, coin);
             });
@@ -608,18 +403,17 @@ function GameCanvas({
             const pocketRadius = Pocket.POCKET_DIAMETER / 2;
 
             const pockets = [
-                { x: boardX + pocketRadius, y: boardY + pocketRadius },
-                {
-                    x: boardX + boardSize - pocketRadius,
+                { x: boardX + pocketRadius, y: boardY + pocketRadius },                {
+                    x: boardX + Draw.BOARD_SIZE - pocketRadius,
                     y: boardY + pocketRadius,
                 },
                 {
                     x: boardX + pocketRadius,
-                    y: boardY + boardSize - pocketRadius,
+                    y: boardY + Draw.BOARD_SIZE - pocketRadius,
                 },
                 {
-                    x: boardX + boardSize - pocketRadius,
-                    y: boardY + boardSize - pocketRadius,
+                    x: boardX + Draw.BOARD_SIZE - pocketRadius,
+                    y: boardY + Draw.BOARD_SIZE - pocketRadius,
                 },
             ];            // check if striker is pocketed
             const striker = strikerRef.current;
@@ -698,14 +492,12 @@ function GameCanvas({
                     beingPocketedStrikerRef.current = null;
 
                     // reset striker's pocketing state and radius
-                    strikerRef.current.resetPocketingState();
-
-                    // immediately reset striker position to correct baseline for next player
-                    const boardX = (canvasRef.current.width - boardSize) / 2;
-                    const boardY = (canvasRef.current.height - boardSize) / 2;
+                    strikerRef.current.resetPocketingState();                    // immediately reset striker position to correct baseline for next player
+                    const boardX = (canvasRef.current.width - Draw.BOARD_SIZE) / 2;
+                    const boardY = (canvasRef.current.height - Draw.BOARD_SIZE) / 2;
                     const bottomBaselineY =
-                        boardY + boardSize - baseDistance - baseHeight / 2;
-                    const topBaselineY = boardY + baseDistance + baseHeight / 2;
+                        boardY + Draw.BOARD_SIZE - Draw.BASE_DISTANCE - Draw.BASE_HEIGHT / 2;
+                    const topBaselineY = boardY + Draw.BASE_DISTANCE + Draw.BASE_HEIGHT / 2;
 
                     // determine next player, turn will switch after striker pocketing
                     const nextPlayer =
@@ -727,7 +519,7 @@ function GameCanvas({
                                 : topBaselineY;
                     }
 
-                    strikerRef.current.x = boardX + boardSize / 2;
+                    strikerRef.current.x = boardX + Draw.BOARD_SIZE / 2;
                     strikerRef.current.y = newY;
                     strikerRef.current.velocity = { x: 0, y: 0 };
                     strikerRef.current.isStrikerMoving = false;
@@ -902,11 +694,9 @@ function GameCanvas({
                         }
                     }
                 }
-            });
-
-            // remove pocketed coins section is now handled by animation processing above
+            });            // remove pocketed coins section is now handled by animation processing above
             // draw updated state
-            drawBoard(ctx);
+            Draw.drawBoard(ctx, createGameState(), playerRole);
 
             // check if anything is still moving using consistent threshold
             const isAnythingMoving =
@@ -1151,11 +941,10 @@ function GameCanvas({
                     strikerRef.current.updatePosition(
                         data.position.x,
                         data.position.y,
-                    );
-                }
+                    );                }
 
                 const ctx = canvasRef.current.getContext("2d");
-                drawBoard(ctx);
+                Draw.drawBoard(ctx, createGameState(), playerRole);
             }
         };
 
@@ -1165,11 +954,9 @@ function GameCanvas({
         const handleStrikerCollisionUpdate = (data) => {
             if (data.roomName === roomName) {
                 // update collision state based on remote player's collision check
-                setIsStrikerColliding(data.isColliding);
-
-                // redraw board immediately with updated collision state
+                setIsStrikerColliding(data.isColliding);                // redraw board immediately with updated collision state
                 const ctx = canvasRef.current.getContext("2d");
-                drawBoard(ctx);
+                Draw.drawBoard(ctx, createGameState(), playerRole);
             }
         };
 
@@ -1200,11 +987,10 @@ function GameCanvas({
                     strikerRef.current.resetPocketingState();
                     strikerRef.current.x = data.x;
                     strikerRef.current.y = data.y;
-                    strikerRef.current.velocity = { x: 0, y: 0 };
-                    strikerRef.current.isStrikerMoving = false;
+                    strikerRef.current.velocity = { x: 0, y: 0 };                    strikerRef.current.isStrikerMoving = false;
 
                     const ctx = canvasRef.current.getContext("2d");
-                    drawBoard(ctx);
+                    Draw.drawBoard(ctx, createGameState(), playerRole);
                 }
             }
         };
@@ -1318,10 +1104,9 @@ function GameCanvas({
                     coin.y = remote.y;
                     coin.velocity = { ...remote.velocity };
                 }
-            });
-            setCoins([...coinsRef.current]);
+            });            setCoins([...coinsRef.current]);
             const ctx = canvasRef.current.getContext("2d");
-            drawBoard(ctx);
+            Draw.drawBoard(ctx, createGameState(), playerRole);
         };
 
         socket.on("coinsMove", handleCoinsMove);
@@ -1336,10 +1121,9 @@ function GameCanvas({
         if (!socket || !roomName) return;
         const handleCoinsPocketed = (data) => {
             if (data.roomName !== roomName) return;            data.pocketedIds.forEach((id) => {
-                Pocket.removeCoin(id, coinsRef, setCoins);
-            });
+                Pocket.removeCoin(id, coinsRef, setCoins);            });
             const ctx = canvasRef.current.getContext("2d");
-            drawBoard(ctx);
+            Draw.drawBoard(ctx, createGameState(), playerRole);
         };
         socket.on("coinsPocketed", handleCoinsPocketed);
         return () => socket.off("coinsPocketed", handleCoinsPocketed);
@@ -1352,9 +1136,8 @@ function GameCanvas({
     useEffect(() => {
         if (!socket || !roomName) return;        const handleDebtPaid = (data) => {
             if (data.roomName !== roomName) return;
-            Pocket.addCoinAtCenter(data.coinId, data.coinColor, canvasRef, boardSize, coinsRef, setCoins, pocketedCoinsRef);
-            const ctx = canvasRef.current.getContext("2d");
-            drawBoard(ctx);
+            Pocket.addCoinAtCenter(data.coinId, data.coinColor, canvasRef, Draw.BOARD_SIZE, coinsRef, setCoins, pocketedCoinsRef);            const ctx = canvasRef.current.getContext("2d");
+            Draw.drawBoard(ctx, createGameState(), playerRole);
         };
         socket.on("debtPaid", handleDebtPaid);
         return () => socket.off("debtPaid", handleDebtPaid);
@@ -1365,10 +1148,9 @@ function GameCanvas({
     // force a redraw
     useEffect(() => {
         if (!socket || !roomName) return;        const handleQueenReset = (data) => {
-            if (data.roomName !== roomName) return;
-            Pocket.addCoinAtCenter(5, "red", canvasRef, boardSize, coinsRef, setCoins, pocketedCoinsRef);
+            if (data.roomName !== roomName) return;            Pocket.addCoinAtCenter(5, "red", canvasRef, Draw.BOARD_SIZE, coinsRef, setCoins, pocketedCoinsRef);
             const ctx = canvasRef.current.getContext("2d");
-            drawBoard(ctx);
+            Draw.drawBoard(ctx, createGameState(), playerRole);
         };
         socket.on("queenReset", handleQueenReset);
         return () => socket.off("queenReset", handleQueenReset);
@@ -1430,13 +1212,12 @@ function GameCanvas({
             pendingTurnActionRef.current = null;
 
             // reset all coins to centered formation
-            if (!canvasRef.current) return;
-            const boardX = (canvasRef.current.width - boardSize) / 2;
-            const boardY = (canvasRef.current.height - boardSize) / 2;
+            if (!canvasRef.current) return;            const boardX = (canvasRef.current.width - Draw.BOARD_SIZE) / 2;
+            const boardY = (canvasRef.current.height - Draw.BOARD_SIZE) / 2;
 
             // Center position for coin formation
-            const centerX = boardX + boardSize / 2;
-            const centerY = boardY + boardSize / 2;
+            const centerX = boardX + Draw.BOARD_SIZE / 2;
+            const centerY = boardY + Draw.BOARD_SIZE / 2;
 
             // Configuration for centered coin formation
             const coinFormation = {
@@ -1509,19 +1290,16 @@ function GameCanvas({
             gameManager.resetGame();
 
             // reset striker position
-            if (strikerRef.current) {
-                const initialX = boardX + boardSize / 2;
+            if (strikerRef.current) {                const initialX = boardX + Draw.BOARD_SIZE / 2;
                 const initialY =
-                    boardY + boardSize - baseDistance - baseHeight / 2;
+                    boardY + Draw.BOARD_SIZE - Draw.BASE_DISTANCE - Draw.BASE_HEIGHT / 2;
                 strikerRef.current.x = initialX;
                 strikerRef.current.y = initialY;
                 strikerRef.current.velocity = { x: 0, y: 0 };
                 strikerRef.current.isStrikerMoving = false;
-            }
-
-            // redraw board
+            }            // redraw board
             const ctx = canvasRef.current.getContext("2d");
-            drawBoard(ctx);
+            Draw.drawBoard(ctx, createGameState(), playerRole);
         };
 
         socket.on("gameReset", handleGameReset);
@@ -1543,10 +1321,9 @@ function GameCanvas({
     }, [isStrikerColliding, coins]); // re-run when coins change
 
     // separate useEffect for canvas event listeners
-    useEffect(() => {
-        const canvas = canvasRef.current;
+    useEffect(() => {        const canvas = canvasRef.current;
         const ctx = canvas.getContext("2d");
-        drawBoard(ctx);
+        Draw.drawBoard(ctx, createGameState(), playerRole);
         canvas.addEventListener("mousedown", handleMouseDown);
         canvas.addEventListener("mousemove", handleMouseMove);
         canvas.addEventListener("mouseup", handleMouseUp);
