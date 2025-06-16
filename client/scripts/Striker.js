@@ -1,7 +1,7 @@
 import Pocket from './Pocket.js';
 import Physics from './Physics.js';
 
-export default class Striker3D {
+export default class Striker {
     constructor(x, y) {
         this.radius = 21;
         this.strikerMass = 1;

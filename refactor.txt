@@ -41,25 +41,6 @@ setCoins
 coinsRef
 coins (state)
 
-Input Functions:
-
-handleFlick
-handlePlace
-handleFlickMouseDown
-handleFlickMouseMove
-handleFlickMouseUp
-handleMouseDown
-handleMouseMove
-handleMouseUp
-setisPlacing
-setCanPlace
-setFlick
-isPlacing (state)
-canPlace (state)
-flick (state)
-flickMaxLength
-flickPower
-
 Collision Functions:
 
 setIsStrikerColliding

@@ -14,7 +14,8 @@ function GameCanvas({
     roomName,
     gameManager,
 }) {
-    const canvasRef = useRef(null);    const strikerRef = useRef(null);
+    const canvasRef = useRef(null);
+    const strikerRef = useRef(null);
 
     // track how many continued turns remain
     // track how many coins player owes
