@@ -1,4 +1,3 @@
-// handle coin border collision
 // coin handler border collision
 // resolve circle collision
 // is near any pocket, start pocketing, updatepocketing animation

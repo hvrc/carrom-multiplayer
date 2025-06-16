@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Striker from "./Striker";
 import Coin from "./Coin";
+import Physics from "./Physics";
 
 function GameCanvas({
     isMyTurn = true,
@@ -158,19 +159,12 @@ function GameCanvas({
 
         // redraw the board
         drawBoard(ctx);
-    }
-    // check if striker is colliding with any coins during placement
+    }    // check if striker is colliding with any coins during placement
     function checkStrikerCoinCollision() {
         if (!strikerRef.current) return false;
 
         for (const coin of coinsRef.current) {
-            const distance = Math.hypot(
-                strikerRef.current.x - coin.x,
-                strikerRef.current.y - coin.y,
-            );
-            const combinedRadius = strikerRef.current.radius + coin.radius;
-
-            if (distance < combinedRadius) {
+            if (Physics.areCirclesColliding(strikerRef.current, coin)) {
                 return true;
             }
         }
@@ -597,51 +591,10 @@ function GameCanvas({
                 });
             }
         }
-    };
-
-    // collision
-    // elastic collision between two circles, striker coin
-    function resolveCircleCollision(a, b) {
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist === 0) return;
-        const overlap = a.radius + b.radius - dist;
-        if (overlap > 0) {
-            const nx = dx / dist;
-            const ny = dy / dist;
-            const totalMass = a.strikerMass
-                ? a.strikerMass + b.coinMass
-                : a.coinMass + b.coinMass;
-            const aMass = a.strikerMass || a.coinMass;
-            const bMass = b.coinMass;
-            a.x -= nx * (overlap * (bMass / totalMass));
-            a.y -= ny * (overlap * (bMass / totalMass));
-            b.x += nx * (overlap * (aMass / totalMass));
-            b.y += ny * (overlap * (aMass / totalMass));
-            const dvx = b.velocity.x - a.velocity.x;
-            const dvy = b.velocity.y - a.velocity.y;
-            const vn = dvx * nx + dvy * ny;
-
-            if (vn < 0) {
-                const restitution = Math.min(
-                    a.restitution || 1,
-                    b.restitution || 1,
-                );
-                const impulse =
-                    (-(1 + restitution) * vn) / (1 / aMass + 1 / bMass);
-                const impulseX = impulse * nx;
-                const impulseY = impulse * ny;
-                a.velocity.x -= impulseX / aMass;
-                a.velocity.y -= impulseY / aMass;
-                b.velocity.x += impulseX / bMass;
-                b.velocity.y += impulseY / bMass;
-            }
-        }
-    }    // check if an object is near any pocket
+    };    // check if an object is near any pocket
     function isNearAnyPocket(x, y, pockets, threshold = 60) {
         return pockets.some((pocket) => {
-            const dist = Math.hypot(x - pocket.x, y - pocket.y);
+            const dist = Physics.getDistance({ x, y }, pocket);
             return dist < threshold;
         });
     }
@@ -666,15 +619,13 @@ function GameCanvas({
             );            coinsRef.current.forEach((coin) => {
                 coin.update();
                 coin.handleBorderCollision(boardX, boardY, boardSize);
-            });
-
-            coinsRef.current.forEach((coin) => {
-                resolveCircleCollision(strikerRef.current, coin);
+            });            coinsRef.current.forEach((coin) => {
+                Physics.resolveCircleCollision(strikerRef.current, coin);
             });
 
             for (let i = 0; i < coinsRef.current.length; i++) {
                 for (let j = i + 1; j < coinsRef.current.length; j++) {
-                    resolveCircleCollision(
+                    Physics.resolveCircleCollision(
                         coinsRef.current[i],
                         coinsRef.current[j],
                     );
