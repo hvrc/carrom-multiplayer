@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import Striker from "./Striker";
 import Coin from "./Coin";
 import Physics from "./Physics";
-import Pocket from "./Pocket";
 import Draw from "./Draw";
 import Hand from "./Hand";
 import Animation from "./Animation";
@@ -10,7 +8,6 @@ import * as Events from "./Events";
 
 function GameCanvas({
     isMyTurn = true,
-    onStrikerMove = () => {},
     socket,
     playerRole,
     roomName,
@@ -23,6 +20,7 @@ function GameCanvas({
     // track how many coins player owes
     const continuedTurnsRef = useRef(0);
     const debtRef = useRef(0);
+
     // Hand interaction manager
     const handRef = useRef(new Hand());
     const [handState, setHandState] = useState(handRef.current.getState());
@@ -40,7 +38,9 @@ function GameCanvas({
     // all-time pocketed coins
     // coins pocketed in current turn
     const pocketedCoinsRef = useRef(new Set());
-    const pocketedThisTurnRef = useRef([]); // track initial coin counts for game end detection
+    const pocketedThisTurnRef = useRef([]);
+    
+    // track initial coin counts for game end detection
     const initialCoinCountsRef = useRef({ white: 0, black: 0, red: 0 });
 
     // add coins at the center of the board
@@ -175,6 +175,7 @@ function GameCanvas({
 
     // animation loop for striker and coin movement
     useEffect(() => {
+        
         // animation should run if it's my turn OR there are pocketing animations happening
         const shouldAnimate =
             animationState.isAnimating &&
@@ -204,7 +205,9 @@ function GameCanvas({
         return () => {
             animationRef.current.stopAnimation();
         };
-    }, [animationState.isAnimating, socket, roomName, isMyTurn]); // listen for striker moves from other player
+    }, [animationState.isAnimating, socket, roomName, isMyTurn]);
+    
+    // listen for striker moves from other player
     useEffect(() => {
         if (!socket || !roomName) return;
 
@@ -248,7 +251,9 @@ function GameCanvas({
             socket.off("strikerCollisionUpdate", handleStrikerCollisionUpdate);
             socket.off("strikerAnimation", handleStrikerAnimation);
         };
-    }, [socket, roomName]); // listen for turn switch and reset striker position
+    }, [socket, roomName]);
+    
+    // listen for turn switch and reset striker position
     useEffect(() => {
         if (!socket || !roomName) return;
 
@@ -305,7 +310,9 @@ function GameCanvas({
             }));
             socket.emit("coinsMove", { roomName, coins: coinStates });
         }
-    }, [animationState.isAnimating, socket, roomName, coins]); // listen for coin movement from other player
+    }, [animationState.isAnimating, socket, roomName, coins]);
+    
+    // listen for coin movement from other player
     useEffect(() => {
         if (!socket || !roomName) return;
 
@@ -382,7 +389,9 @@ function GameCanvas({
 
         socket.on("queenReset", handleQueenReset);
         return () => socket.off("queenReset", handleQueenReset);
-    }, [socket, roomName]); // listen for cover turn state updates
+    }, [socket, roomName]);
+    
+    // listen for cover turn state updates
     useEffect(() => {
         if (!socket || !roomName) return;
 
@@ -494,7 +503,9 @@ function GameCanvas({
         isMyTurn,
         handState.isFlickerActive,
         handState.flick,
-    ]); // cleanup pending actions on component unmount or room change
+    ]);
+    
+    // cleanup pending actions on component unmount or room change
     useEffect(() => {
         return () => {
             animationRef.current.cleanup();

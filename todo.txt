@@ -29,14 +29,9 @@ animation for pocketing coins, striker
 no overlapping
 starting grid
 
+refactor
 better physics
 fix slow speed on joiner window
-client optimization
-server optimization
-
-coin, striker, physics, pocket, board, gameManager, socket manager
-
-seperate server index logic?
 longer heartbeats in server?
 refresh and retry bug
 player should be able to refresh while in room
@@ -47,6 +42,8 @@ intial coin counting should be dynamic
 constants file
 refact board.jsx
 remove unused variables and functions
+useState, useRef, versus custom classes in Hand & Animation
+better game state management
 
 console logs to html, more ui
 assign more points for queen

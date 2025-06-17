@@ -65,14 +65,7 @@ class Animation {
     }
 
     // Reset striker position when all movement has stopped
-    executeStrikerReset(
-        actionData,
-        strikerRef,
-        canvasRef,
-        playerRole,
-        continuedTurnsRef,
-        pocketedThisTurnRef,
-    ) {
+    executeStrikerReset(actionData, strikerRef, canvasRef, playerRole, continuedTurnsRef, pocketedThisTurnRef, ) {
         if (!strikerRef.current) return;
 
         const ctx = canvasRef.current?.getContext("2d");
@@ -146,7 +139,6 @@ class Animation {
             continuedTurnsRef,
             debtRef,
             pocketedThisTurnRef,
-            pocketedCoinsRef,
         } = params;
 
         if (!strikerRef.current || !isMyTurn) return;
@@ -293,6 +285,7 @@ class Animation {
             const animationComplete =
                 strikerRef.current.updatePocketAnimation();
             if (animationComplete) {
+
                 // animation complete, process striker pocketing
                 const strikerData = this.beingPocketedStrikerRef;
                 this.beingPocketedStrikerRef = null;
@@ -709,7 +702,9 @@ class Animation {
             if (isMyTurn) {
                 const remainingCoins = coinsRef.current.filter(
                     (coin) => coin.color !== "red",
-                ); // exclude queen
+                );
+                
+                // exclude queen
                 const whiteCoinsRemaining = remainingCoins.filter(
                     (coin) => coin.color === "white",
                 );
