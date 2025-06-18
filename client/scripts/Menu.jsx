@@ -9,7 +9,10 @@ export default function Menu() {
     // navigate is used to navigate to the room
     // use effect checks for saved room, clears storage if none, and cleans up socket listeners on exit
 
-    // what are these square brackets and empty use states?
+    // array destructuring
+    // use state ("") returns two things,
+    // the current value, which starts as an empty string
+    // a function to change that value
 
     const [joinUsername, setJoinUsername] = useState("");
     const [joinRoomName, setJoinRoomName] = useState("");
@@ -18,11 +21,16 @@ export default function Menu() {
     const [error, setError] = useState("");
     const navigate = useNavigate();
 
-    // what is a use effect?
+    // use effect is a react hook
+    // it runs when a component first loads or when it is about to be removed,
+    // or when values in the square brackets change, its called the dependency array
+    // since its empty, it runs only once when the component mounts
 
     // gets room name from what user inputs into the field, which is stored in locaal storage
-    // if room name is null, the local storage is cleared? what happens then?
-    // what does socket off mean?
+    // if room name is null, the local storage is cleared
+    // socket off means stop listeing for this message,
+    // in this case we are asking the browser/client to stop listening to playerJoined events
+
     useEffect(() => {
         const roomName = localStorage.getItem("roomName");
         if (!roomName) { localStorage.clear();}
@@ -62,16 +70,15 @@ export default function Menu() {
             clientId,
         });
         
-        // what are these const blocks?
-
-        // what is that data parameter?  where does it come from?
+        // these const handle... blocks are functions that are automatically called by socket.io,
+        // when the socket receives a message of type playerJoined from the server
+        // the data parameter is being filled by the server,
+        // with info like username, room name etc
         // listens for player joined event
         // if username in the data equals the username set while trying to create a room
         // and room name in data equals the room name set ...
         // sets the create room username, room name and player role,
-
-        // what is the socket off doing here?
-
+        // stop listening for playerJoined events,
         // navigate to the url with the name of the room
         const handlePlayerJoined = (data) => {
             if (data.username === createUsername && data.roomName === createRoomName) {
@@ -83,8 +90,9 @@ export default function Menu() {
             }
         };
 
-        // what is a socket on versus a socket off?
-        // error handling for socket off, what is it actually doing?
+        // socket on means we are asking browser/client to listen to playerJoined events
+        // if client hears an error, we set the received message as the error,
+        // and we stop listening for playerJoined events
 
         socket.on("playerJoined", handlePlayerJoined);
         socket.on("error", (msg) => {
@@ -138,8 +146,8 @@ export default function Menu() {
             }
         };
         
-        // ?
-
+        // client listens for playerJoined events sent by the server
+        // ...
         socket.on("playerJoined", handlePlayerJoined);
         socket.on("error", (msg) => {
             setError(msg);
@@ -148,9 +156,10 @@ export default function Menu() {
     };
 
     // menu form of creating and joining rooms
+    // displays error message on top
     // returns a div with two sections, one for joining a room and one for creating a room
-
-    // where do setJoinUsername, setJoinRoomName, setCreateUsername, setCreateRoomName come from?
+    // setJoinUsername, setJoinRoomName, setCreateUsername, setCreateRoomName come from,
+    // the use state declarions at the top
     return (
         <div>
             {error && <p>{error}</p>}

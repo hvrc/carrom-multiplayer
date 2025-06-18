@@ -1,6 +1,11 @@
 import { io } from "socket.io-client";
 
 // generate or reuse a unique client id for each browser session, which is each client
+// sessuib storage is a built in browser feature that stores data for as long as the given tab is open
+// get the browser/client id from the session storage
+// if there is no client id set, generate a new one, using a UUID-like format
+// set it in the session storage
+// return the client id
 const generateClientId = () => {
     let clientId = sessionStorage.getItem("clientId");
     if (!clientId) {
@@ -17,6 +22,13 @@ const generateClientId = () => {
 };
 
 // socket.io client... connects to server with client id attached
+// io() returns a socket connection object, that has methods like:
+// emit() to send messages to the server, on()/off() to listen for/stop listening to messages from the server,
+// socket is an instance of the socket.io client, which is used to communicate with the server
+// takes the server URL, which is localhost for development
+// we dont want it to connect automatically,
+// we want reconnections to be enabled, 5 attempts with a 1 second delay
+// and we want to pass the client id as a query parameter
 const socket = io("http://localhost:3000", {
     autoConnect: false,
     reconnection: true,
@@ -26,18 +38,24 @@ const socket = io("http://localhost:3000", {
 });
 
 // start heartbeat
+// get client id from session storage
+// if client id exists and heartbeat interval is not set,
+// send an heartbeart emit to the server with the client id,
+// every 5 seconds
+// i might want to increase this interval !
 let heartbeatInterval;
 const startHeartbeat = () => {
     const clientId = sessionStorage.getItem("clientId");
     if (clientId && !heartbeatInterval) {
         heartbeatInterval = setInterval(() => {
             socket.emit("heartbeat", { clientId });
-            // console.log('Sent heartbeat for clientId:', clientId);
-        }, 5000); // Every 5 seconds
+        }, 5000);
     }
 };
 
 // stop heartbeat on disconnect
+// if heartbeatInterval is set,
+// clear it and set it to null
 const stopHeartbeat = () => {
     if (heartbeatInterval) {
         clearInterval(heartbeatInterval);
@@ -46,20 +64,27 @@ const stopHeartbeat = () => {
     }
 };
 
-// connect to the server
+// listen for connect, when it does, start the heartbeat
 socket.on("connect", () => {
-    console.log(
-        "Socket connected with clientId:",
-        sessionStorage.getItem("clientId"),
-    );
+    // console.log( "Socket connected with clientId:", sessionStorage.getItem("clientId"));
     startHeartbeat();
 });
+
+// listen for a connect errior event, it will come with a error object?/message,
+// stop the heartbeat
 socket.on("connect_error", (error) => {
     console.error("Connect error:", error);
     stopHeartbeat();
 });
 
 // reconnect to the server if the connection is lost
+// listen for a reconnect evernt, it comes with an attempt count,
+// local storage is a built in browser feature that stores data on the user's device in special browser folders
+// set username, room name, player role, client id from local storage
+// if username, room name and client id have values,
+// if player is a creator, emit a createRoom event with room name, username and client id
+// else if player is a joiner, emit a joinRoom event with room name, username and client id
+// start the heartbeat again
 socket.on("reconnect", (attempt) => {
     const username = localStorage.getItem("username");
     const roomName = localStorage.getItem("roomName");
@@ -75,15 +100,23 @@ socket.on("reconnect", (attempt) => {
     startHeartbeat();
 });
 
+// similar to the error event,
+// listen for a reconnect error event,
+// it will come with an error object/message,
+// stop heartbeat
 socket.on("reconnect_error", (error) => {
     console.error("Reconnect error:", error);
     stopHeartbeat();
 });
 
 // disconnect from the server
+// listen for a disconnect event, it will come with a reason,
+// stop the heartbeat
 socket.on("disconnect", (reason) => {
     console.log("Socket disconnected:", reason);
     stopHeartbeat();
 });
 
+// export the socket instance so it can be used in other components and files
+// menu, room, board, events
 export default socket;
