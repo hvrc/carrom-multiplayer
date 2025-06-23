@@ -2,12 +2,10 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
-// express server that handles the http requests
-// socket.io server that handles the socket connections
-// port can be process.env.PORT
-// rooms is a map that stores the rooms and their players
-// lastHeartbeat track last heartbeat time per clientId
-// heartbeatTimeout is the time in ms that a client has to send a heartbeat
+// express() returns ?
+// createServer() creates an HTTP server, what is the nature of this server?
+// Server() creates a socket.io server that listens on the HTTP server
+// cors allows all origins *, and  allows GET and POST methods
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -17,14 +15,21 @@ const io = new Server(httpServer, {
     },
 });
 
-// rooms
-
+// port for the server to listen on
+// rooms is a Map to store active rooms, map stores key-value pairs
+// lastHeartbeat is a Map to track the last heartbeat time for each client
+// 10 seconds heartbeat timeout
 const PORT = 3000;
 const rooms = new Map();
 const lastHeartbeat = new Map();
 const heartbeatTimeout = 10 * 1000;
 
-// initialize room structure
+// this function takes a room name and a creator object,
+// what is the nature of the creator object?
+// the joiner is null
+// client itds is a set of client ids, initialized with the creator's id
+// the turn is intitially set to the creator
+// debts for both is initially zero
 function createRoom(roomName, creator) {
     return {
         creator,
@@ -38,7 +43,9 @@ function createRoom(roomName, creator) {
     };
 }
 
-// deletes empty rooms
+// for each room, get the room sockets from the io.sockets.adapter.rooms,
+// if the room sockets are undefined or if the room sockets size is zero,
+// delete that room from the rooms map
 function cleanupEmptyRooms() {
     for (const [roomName, room] of rooms.entries()) {
         const roomSockets = io.sockets.adapter.rooms.get(roomName);
@@ -48,7 +55,12 @@ function cleanupEmptyRooms() {
     }
 }
 
-// route to show list of active rooms
+// default route for server, backend
+// intialize empty html string
+// if rooms size is zero append a message to the html string saying there are no active rooms
+// if rooms have a size greater than zero, then add a list to the html string,
+// for eaech room in the rooms map, display the room's name, creator and joiner usernames
+// rest is a simple HTML response that sends the final html string
 app.get("/", (req, res) => {
     let html = "";
     if (rooms.size === 0) {
@@ -63,13 +75,34 @@ app.get("/", (req, res) => {
     res.send(html);
 });
 
-// remove clients that haven't sent a heartbeat
+// this section does the following every 5 seconds:
+// it promotes the joiner to creator if the creator has left,
+// deletes the room if both creator and joiner have left
+
+// !
+// joiner does not need to become creator,
+// 10 seconds is too short
+// smoother swapping of clients
+
+// get the current date (and time?),
+// for each time stamp and client id in the map of heartbeats,
+// if the time difference between now and the last heartbeat is greater than the heartbeat timeout,
+// iterate through each room in the rooms map,
 setInterval(() => {
     const now = Date.now();
     lastHeartbeat.forEach((lastTime, clientId) => {
         if (now - lastTime > heartbeatTimeout) {
             rooms.forEach((room, roomName) => {
+
+                // if the room creator has been set and,
+                // if the first client id being iterated over matches the CREATOR's client id,
                 if (room.creator && room.creator.clientId === clientId) {
+
+                    // if the room's joiner has been set,
+                    // set the room creator to have the joiner's username and client id,
+                    // set the joiner to null,
+                    // delete the client id from the room's client ids set,
+                    // emit a room update event to the room with the new creator and no joiner
                     if (room.joiner) {
                         room.creator = {
                             username: room.joiner.username,
@@ -82,6 +115,10 @@ setInterval(() => {
                             creator: { username: room.creator.username },
                             joiner: null,
                         });
+
+                    // else if room has no joiner, 
+                    // emit a roomClosed event to th e room, with a message
+                    // which deletes the room from the rooms map
                     } else {
                         rooms.delete(roomName);
                         io.to(roomName).emit(
@@ -89,6 +126,12 @@ setInterval(() => {
                             "Creator has left the room",
                         );
                     }
+
+                // else if the room's joiner has been set and
+                // if the first client id being iterated over matches the JOINER's client id,
+                // set the joiner to null,
+                // delete the client id from the room's client ids set,
+                // emit a room update event to the room with the creator and no joiner
                 } else if (room.joiner && room.joiner.clientId === clientId) {
                     room.joiner = null;
                     room.clientIds.delete(clientId);
@@ -99,24 +142,42 @@ setInterval(() => {
                     });
                 }
             });
+
+            // delete the client id from the lastHeartbeat map
             lastHeartbeat.delete(clientId);
         }
     });
+
+// every 5 seconds
 }, 5000);
 
 // listens for new client connections and handles their interactions
+// io.on is the main event listener that waits for new players to connect
+// the "connection" string is a predefined event name in socket.io,
+// that automatically triggers when a new client connects to the server,
+// socket parameter represents one sepcific player's connection channel,
+// it contains a unique identifier for that player, 
+// methods to communicate with that player (emit, on),
+// connection info like socket.handshake.query.clientId,
+// room membership abilities like join, leave
+// sets a client id through the socket handshake query,
 io.on("connection", (socket) => {
-    // clientId ?
     const clientId = socket.handshake.query.clientId;
 
-    // if clientId is not valid, emit error and disconnect
+    // if client id has not been set or if client id's value is null/undefined,
+    // emit an error to all? clients
+    // disconnect the socket from ?
+    // return to stop further processing
     if (!clientId || clientId === "null" || clientId === "undefined") {
         socket.emit("error", "Invalid client ID");
         socket.disconnect();
         return;
     }
 
-    // initialize heartbeat and track last heartbeat time
+    // add to the lastHeartbeat map with the current time and clientId
+    // listen for heartbeat events from the client,
+    // if the incoming clientId matches the one stored in lastHeartbeat,
+    // update the last heartbeat time for that clientId, to the current time
     lastHeartbeat.set(clientId, Date.now());
     socket.on("heartbeat", ({ clientId: incomingClientId }) => {
         if (incomingClientId === clientId) {
@@ -124,11 +185,18 @@ io.on("connection", (socket) => {
         }
     });
 
-    // check if client can access the room
-    // check if room is full
-    // check if room does not exist
-    // check if clientId is invalid
-    // check if clientId is valid, join the room and emit access granted
+    // ! can the error handling be removed?
+    // listen for a checkRoomAccess event, which checks if a player can access a room
+    // it has parameters, room name and the incoming client id
+    // if the incoming clientId is invalid, emit an error and return
+    // if the room name is not found in the rooms map, emit an error and return
+    // get the room from the rooms map that has the room name,
+    // if the room's clientIds set has 2 or more unique client ids and,
+    // if the incoming clientId is not in that set,
+    // emit an error that the room is full and return
+    // else, join the room using socket.join,
+    // emit an accessGranted event to the client
+    // how does the socket emit work, who is it emitting that access granted to?
     socket.on("checkRoomAccess", ({ roomName, clientId: incomingClientId }) => {
         if (
             !incomingClientId ||
@@ -150,131 +218,144 @@ io.on("connection", (socket) => {
         socket.join(roomName);
         socket.emit("accessGranted");
     });
-
-    // handle client rejoining after refresh
-    // check if clientId is valid
-    // check if room exists
-    // check if clientId is the creator or joiner
-    // if yes, join the room and emit access granted
-    socket.on(
-        "rejoinRoom",
-        ({ roomName, username, clientId: incomingClientId, playerRole }) => {
-            if (
-                !incomingClientId ||
-                incomingClientId === "null" ||
-                incomingClientId === "undefined"
-            ) {
-                socket.emit("error", "Invalid client ID");
-                return;
-            }
-            if (!rooms.has(roomName)) {
-                socket.emit("error", "Room does not exist");
-                return;
-            }
-            const room = rooms.get(roomName);
-            if (
-                playerRole === "creator" &&
-                room.creator &&
-                room.creator.clientId === incomingClientId
-            ) {
-                socket.join(roomName);
-                socket.emit("accessGranted");
-            } else if (
-                playerRole === "joiner" &&
-                room.joiner &&
-                room.joiner.clientId === incomingClientId
-            ) {
-                socket.join(roomName);
-                socket.emit("accessGranted");
-            } else {
-                socket.emit("error", "Invalid session or role");
-            }
-        },
-    );
-
-    // check if clientId is valid
-    // check if roomName is valid
-    // check if room already exists
-    // create room, join room, emit player joined, emit room update
-    socket.on(
-        "createRoom",
-        ({ roomName, username, clientId: incomingClientId }) => {
-            if (
-                !incomingClientId ||
-                incomingClientId === "null" ||
-                incomingClientId === "undefined"
-            ) {
-                socket.emit("error", "Invalid client ID");
-                return;
-            }
-            if (rooms.has(roomName)) {
-                socket.emit("error", "Room already exists");
-                return;
-            }
-            rooms.set(roomName, {
-                creator: { username, clientId: incomingClientId },
-                joiner: null,
-                clientIds: new Set([incomingClientId]),
-                whoseTurn: "creator",
-            });
-
+    
+    // ! can the error handling be removed?
+    // rejoin room is to rejoin an existing room aftger a disconnection
+    // takes room name, username, incoming client id and player role as parameters
+    // if the incoming clientId is invalid, emit an error and return
+    // if the room name is not found in the rooms map, emit an error and return
+    // get the room from the rooms map that has the room name,
+    // if the player role is creator and the room's creator is set and the id matches the incoming clientId,
+    // join the room using socket.join, emit an accessGranted event
+    // else if the player role is joiner and the room's joiner is set and the id matches the incoming clientId,
+    // join the room using socket.join, emit an accessGranted event
+    // else, emit an error, saying that the session or role is invalid
+    socket.on("rejoinRoom", ({ roomName, username, clientId: incomingClientId, playerRole }) => {
+        if (
+            !incomingClientId ||
+            incomingClientId === "null" ||
+            incomingClientId === "undefined"
+        ) {
+            socket.emit("error", "Invalid client ID");
+            return;
+        }
+        if (!rooms.has(roomName)) {
+            socket.emit("error", "Room does not exist");
+            return;
+        }
+        const room = rooms.get(roomName);
+        if (
+            playerRole === "creator" &&
+            room.creator &&
+            room.creator.clientId === incomingClientId
+        ) {
             socket.join(roomName);
-            socket.emit("playerJoined", { username, roomName });
-            socket.emit("roomUpdate", {
-                roomName,
-                creator: { username },
-                joiner: null,
-                whoseTurn: "creator",
-            });
-        },
-    );
-
-    // check if clientId is valid
-    // check if room exists
-    // check if room is full, two unique client ids
-    // create a joiner object, have it join the room
-    // emit player joined, emit room update
-    socket.on(
-        "joinRoom",
-        ({ roomName, username, clientId: incomingClientId }) => {
-            if (
-                !incomingClientId ||
-                incomingClientId === "null" ||
-                incomingClientId === "undefined"
-            ) {
-                socket.emit("error", "Invalid client ID");
-                return;
-            }
-            if (!rooms.has(roomName)) {
-                socket.emit("error", "Room does not exist");
-                return;
-            }
-            const room = rooms.get(roomName);
-            if (room.clientIds.has(incomingClientId)) {
-                socket.emit("error", "Client already in room");
-                return;
-            }
-            if (room.clientIds.size >= 2) {
-                socket.emit("error", "Room is full");
-                return;
-            }
-            if (room.joiner) {
-                socket.emit("error", "Room is full");
-                return;
-            }
-
-            room.joiner = { username, clientId: incomingClientId };
-            room.clientIds.add(incomingClientId);
+            socket.emit("accessGranted");
+        } else if (
+            playerRole === "joiner" &&
+            room.joiner &&
+            room.joiner.clientId === incomingClientId
+        ) {
             socket.join(roomName);
-            socket.emit("playerJoined", { username, roomName });
-            io.to(roomName).emit("roomUpdate", {
-                roomName,
-                creator: { username: room.creator.username },
-                joiner: { username },
-                whoseTurn: room.whoseTurn,
-            });
-        },
-    );
+            socket.emit("accessGranted");
+        } else {
+            socket.emit("error", "Invalid session or role");
+        }
+    });
+
+    // creates room... takes room name, username, and incoming client id as parameters
+    // if incoming clientId is invalid, emit an error and return
+    // if the room name already exists in the rooms map, emit an error and return
+    // create a new room object with the creator's username and client id,
+    // set the joiner to null, initialize clientIds with the incoming clientId,
+    // set whoseTurn to "creator",
+    // join the room using socket.join,
+    // emit a playerJoined event to the client with username and room name,
+    // emit a roomUpdate event to the client with room name, creator's username, no joiner, and whoseTurn set to "creator"
+    socket.on("createRoom", ({ roomName, username, clientId: incomingClientId }) => {
+        if (
+            !incomingClientId ||
+            incomingClientId === "null" ||
+            incomingClientId === "undefined"
+        ) {
+            socket.emit("error", "Invalid client ID");
+            return;
+        }
+        if (rooms.has(roomName)) {
+            socket.emit("error", "Room already exists");
+            return;
+        }
+        rooms.set(roomName, {
+            creator: { username, clientId: incomingClientId },
+            joiner: null,
+            clientIds: new Set([incomingClientId]),
+            whoseTurn: "creator",
+        });
+
+        socket.join(roomName);
+        socket.emit("playerJoined", { username, roomName });
+        socket.emit("roomUpdate", {
+            roomName,
+            creator: { username },
+            joiner: null,
+            whoseTurn: "creator",
+        });
+    });
+
+    // join room, takes room name, username, and incoming client id as parameters
+    // whose username ?
+    // if incoming clientId is invalid, emit an error and return
+    // if the room name does not exist in the rooms map, emit an error and return
+    // get the room from the rooms map that has the room name,
+    // if the incoming clientId is already in the room's clientIds set, emit an error and return
+    // if the room's clientIds set has 2 or more unique client ids, emit an error that the room is full and return
+    // if the room's joiner is already set, emit an error that the room is full and return,
+    // why check if specifically joiner is already in if we are checking if 2 or more are already in the room? 
+    // set the room's joiner to an object with the username and incoming clientId,
+    // add the incoming clientId to the room's clientIds set,
+    // join the room using socket.join, emit a playerJoined event to the client with username and room name,
+    // io to means emit to all clients in the room,
+    // emit a roomUpdate event to all clients in the room with,
+    // the room name, creator's username, joiner's username, and whoseTurn set to "creator" or "joiner",
+    // based on the current state of the room
+    socket.on("joinRoom", ({ roomName, username, clientId: incomingClientId }) => {
+        if (
+            !incomingClientId ||
+            incomingClientId === "null" ||
+            incomingClientId === "undefined"
+        ) {
+            socket.emit("error", "Invalid client ID");
+            return;
+        }
+        if (!rooms.has(roomName)) {
+            socket.emit("error", "Room does not exist");
+            return;
+        }
+        const room = rooms.get(roomName);
+        if (room.clientIds.has(incomingClientId)) {
+            socket.emit("error", "Client already in room");
+            return;
+        }
+        if (room.clientIds.size >= 2) {
+            socket.emit("error", "Room is full");
+            return;
+        }
+        if (room.joiner) {
+            socket.emit("error", "Room is full");
+            return;
+        }
+
+        room.joiner = { username, clientId: incomingClientId };
+        room.clientIds.add(incomingClientId);
+        socket.join(roomName);
+        socket.emit("playerJoined", { username, roomName });
+        io.to(roomName).emit("roomUpdate", {
+            roomName,
+            creator: { username: room.creator.username },
+            joiner: { username },
+            whoseTurn: room.whoseTurn,
+        });
+    });
 
     // asks for room data
     socket.on("requestRoomData", ({ roomName }) => {
@@ -627,9 +708,7 @@ io.on("connection", (socket) => {
     });
 
     // handle striker pocketed event
-    socket.on(
-        "striker-pocketed",
-        ({ roomName, playerRole, scoreChange, respawnCoin }) => {
+    socket.on( "striker-pocketed", ({ roomName, playerRole, scoreChange, respawnCoin }) => {
             if (!rooms.has(roomName)) return;
             const room = rooms.get(roomName);
 

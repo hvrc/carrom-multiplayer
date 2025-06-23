@@ -661,12 +661,8 @@ class Animation {
                         );
 
                     if (pocketedOwnColorCoins.length > 0) {
-                        continuedTurnsRef.current +=
-                            pocketedOwnColorCoins.length - 1;
-                        socket.emit("continueTurn", {
-                            roomName,
-                            continuedTurns: continuedTurnsRef.current,
-                        });
+                        continuedTurnsRef.current += pocketedOwnColorCoins.length - 1;
+                        socket.emit("continueTurn", { roomName, continuedTurns: continuedTurnsRef.current, });
                     } else {
                         // no coins pocketed during cover turn, switch turn
                         socket.emit("switchTurn", { roomName });

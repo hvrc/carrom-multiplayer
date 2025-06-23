@@ -6,8 +6,8 @@ import Physics from "./Physics.js";
  */
 export class Hand {
     // Flick constants
-    static FLICK_MAX_LENGTH = 120;
-    static FLICK_POWER = 0.4;
+    static FLICK_MAX_LENGTH = 10;
+    static FLICK_POWER = 0.2;
 
     constructor() {
         // State management
