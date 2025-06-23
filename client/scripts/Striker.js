@@ -55,25 +55,23 @@ export default class Striker {
             Math.abs(this.velocity.x) > threshold ||
             Math.abs(this.velocity.y) > threshold
         );
-    }
-
-    update(
+    }    update(
         friction = this.friction,
         stopThreshold = 0.2,
         boardX,
         boardY,
         boardSize,
+        otherObjects = []
     ) {
         if (this.isPlacing) return;
-        this.x += this.velocity.x;
-        this.y += this.velocity.y;
-
-        if (
-            boardX !== undefined &&
-            boardY !== undefined &&
-            boardSize !== undefined
-        ) {
-            this.handleBorderCollision(boardX, boardY, boardSize);
+        
+        // Use continuous collision detection for fast-moving striker
+        if (boardX !== undefined && boardY !== undefined && boardSize !== undefined) {
+            Physics.updateWithCCD(this, otherObjects, boardX, boardY, boardSize);
+        } else {
+            // Fallback to simple update
+            this.x += this.velocity.x;
+            this.y += this.velocity.y;
         }
 
         this.velocity.x *= friction;

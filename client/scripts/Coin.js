@@ -13,7 +13,7 @@ export default class Coin {
         y = 0,
         velocity = { x: 0, y: 0 },
         acceleration = { x: 0, y: 0 },
-        restitution = 0.6   ,
+        restitution = 0.6,
         friction = 0.97,
     }) {
         this.id = id;
@@ -66,16 +66,22 @@ export default class Coin {
 
         ctx.stroke();
         ctx.restore();
-    }
-
-    update(stopThreshold = 0.2) {
+    }    update(stopThreshold = 0.2, boardX, boardY, boardSize, otherObjects = []) {
         // don't update position if being pocketed, animation handles position
         if (this.beingPocketed) return;
 
         this.velocity.x += this.acceleration.x;
         this.velocity.y += this.acceleration.y;
-        this.x += this.velocity.x;
-        this.y += this.velocity.y;
+        
+        // Use continuous collision detection for fast-moving coins
+        if (boardX !== undefined && boardY !== undefined && boardSize !== undefined) {
+            Physics.updateWithCCD(this, otherObjects, boardX, boardY, boardSize);
+        } else {
+            // Fallback to simple update
+            this.x += this.velocity.x;
+            this.y += this.velocity.y;
+        }
+        
         this.velocity.x *= this.friction;
         this.velocity.y *= this.friction;
 
@@ -91,7 +97,7 @@ export default class Coin {
             this.velocity.x = 0;
             this.velocity.y = 0;
         }
-    } // Keep isMoving as a METHOD, not a property
+    }// Keep isMoving as a METHOD, not a property
     isMoving(threshold = 0.2) {
         // if being pocketed, consider it as moving until animation completes
         if (this.beingPocketed) return true;

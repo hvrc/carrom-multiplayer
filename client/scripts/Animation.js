@@ -142,9 +142,11 @@ class Animation {
         } = params;
 
         if (!strikerRef.current || !isMyTurn) return;
-
         const boardX = (canvasRef.current.width - Draw.BOARD_SIZE) / 2;
         const boardY = (canvasRef.current.height - Draw.BOARD_SIZE) / 2;
+
+        // Create array of all objects for collision detection
+        const allObjects = [strikerRef.current, ...coinsRef.current];
 
         strikerRef.current.update(
             0.97,
@@ -152,23 +154,36 @@ class Animation {
             boardX,
             boardY,
             Draw.BOARD_SIZE,
+            coinsRef.current // Pass coins for CCD
         );
 
         coinsRef.current.forEach((coin) => {
-            coin.update();
-            coin.handleBorderCollision(boardX, boardY, Draw.BOARD_SIZE);
-        });
+            // Pass other objects for CCD (all objects except this coin)
+            const otherObjects = allObjects.filter(obj => obj !== coin);
+            coin.update(
+                this.MOVEMENT_THRESHOLD,
+                boardX,
+                boardY,
+                Draw.BOARD_SIZE,
+                otherObjects
+            );        });
 
+        // Additional collision resolution for any remaining overlaps
+        // (CCD handles most collisions, but this catches edge cases)
         coinsRef.current.forEach((coin) => {
-            Physics.resolveCircleCollision(strikerRef.current, coin);
+            if (Physics.areCirclesColliding(strikerRef.current, coin)) {
+                Physics.resolveCircleCollision(strikerRef.current, coin);
+            }
         });
 
         for (let i = 0; i < coinsRef.current.length; i++) {
             for (let j = i + 1; j < coinsRef.current.length; j++) {
-                Physics.resolveCircleCollision(
-                    coinsRef.current[i],
-                    coinsRef.current[j],
-                );
+                if (Physics.areCirclesColliding(coinsRef.current[i], coinsRef.current[j])) {
+                    Physics.resolveCircleCollision(
+                        coinsRef.current[i],
+                        coinsRef.current[j],
+                    );
+                }
             }
         }
 
