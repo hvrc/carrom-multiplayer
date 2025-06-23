@@ -6,21 +6,21 @@ import Physics from "./Physics.js";
  */
 export class Hand {
     // Flick constants
-    static FLICK_MAX_LENGTH = 10;
-    static FLICK_POWER = 0.2;
+    static FLICK_MAX_LENGTH = 150;
+    static FLICK_POWER = 0.3;
 
     constructor() {
         // State management
         this.isPlacing = false;
         this.canPlace = true;
-        this.isFlickerActive = false;
-        this.flick = {
+        this.isFlickerActive = false;        this.flick = {
             active: false,
             startX: 0,
             startY: 0,
             endX: 0,
             endY: 0,
         };
+        this.flickMaxLength = Hand.FLICK_MAX_LENGTH;
 
         // Callbacks that will be set by the parent component
         this.onStateChange = null;
@@ -51,13 +51,13 @@ export class Hand {
      * Update internal state and notify parent
      */
     _updateState(updates) {
-        Object.assign(this, updates);
-        if (this.onStateChange) {
+        Object.assign(this, updates);        if (this.onStateChange) {
             this.onStateChange({
                 isPlacing: this.isPlacing,
                 canPlace: this.canPlace,
                 isFlickerActive: this.isFlickerActive,
                 flick: { ...this.flick },
+                flickMaxLength: this.flickMaxLength,
             });
         }
     }
@@ -147,8 +147,7 @@ export class Hand {
 
     /**
      * Handle flick mouse move event
-     */
-    handleFlickMouseMove(e, { isMyTurn, strikerRef, canvasRef, playerRole }) {
+     */    handleFlickMouseMove(e, { isMyTurn, strikerRef, canvasRef, playerRole }) {
         if (
             !isMyTurn ||
             !strikerRef.current ||
@@ -165,6 +164,22 @@ export class Hand {
         if (playerRole === "joiner") {
             x = canvasRef.current.width - x;
             y = canvasRef.current.height - y;
+        }
+
+        // Calculate the distance from start to current mouse position
+        const dx = x - this.flick.startX;
+        const dy = y - this.flick.startY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // Cap the flick line at maximum length
+        if (distance > this.flickMaxLength) {
+            // Calculate the direction vector
+            const directionX = dx / distance;
+            const directionY = dy / distance;
+            
+            // Set the end point at maximum distance
+            x = this.flick.startX + directionX * this.flickMaxLength;
+            y = this.flick.startY + directionY * this.flickMaxLength;
         }
 
         this._updateState({
@@ -197,21 +212,24 @@ export class Hand {
                 },
             });
             return;
-        }
-
-        // calculate velocity (opposite direction of pull)
+        }        // calculate velocity (opposite direction of pull)
         let dx = this.flick.startX - this.flick.endX;
         let dy = this.flick.startY - this.flick.endY;
         const dist = Math.hypot(dx, dy);
 
-        if (dist > Hand.FLICK_MAX_LENGTH) {
-            const scale = Hand.FLICK_MAX_LENGTH / dist;
-            dx *= scale;
-            dy *= scale;
+        // Calculate proportional power based on distance pulled
+        // Power scales from 0 to max power based on distance from 0 to max length
+        const powerRatio = Math.min(dist / this.flickMaxLength, 1.0);
+        const effectivePower = Hand.FLICK_POWER * powerRatio;
+
+        // Normalize direction vector
+        if (dist > 0) {
+            dx = (dx / dist) * dist; // Keep original magnitude for direction
+            dy = (dy / dist) * dist;
         }
 
-        strikerRef.current.velocity.x = dx * Hand.FLICK_POWER;
-        strikerRef.current.velocity.y = dy * Hand.FLICK_POWER;
+        strikerRef.current.velocity.x = dx * effectivePower;
+        strikerRef.current.velocity.y = dy * effectivePower;
         strikerRef.current.isStrikerMoving = true;
 
         this._updateState({
@@ -406,21 +424,20 @@ export class Hand {
 
     /**
      * Get current state for external access
-     */
-    getState() {
+     */    getState() {
         return {
             isPlacing: this.isPlacing,
             canPlace: this.canPlace,
             isFlickerActive: this.isFlickerActive,
             flick: { ...this.flick },
-            flickMaxLength: Hand.FLICK_MAX_LENGTH,
+            flickMaxLength: this.flickMaxLength,
         };
     }
 
     /**
      * Reset state (useful for game resets)
-     */
-    reset() {
+     */    reset() {
+        this.flickMaxLength = Hand.FLICK_MAX_LENGTH;
         this._updateState({
             isPlacing: false,
             canPlace: true,
