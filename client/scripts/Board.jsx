@@ -12,6 +12,7 @@ function GameCanvas({
     playerRole,
     roomName,
     manager,
+    onLeaveRoom,
 }) {
     const canvasRef = useRef(null);
     const strikerRef = useRef(null);
@@ -510,12 +511,41 @@ function GameCanvas({
         return () => {
             animationRef.current.cleanup();
         };
-    }, [roomName]);
+    }, [roomName]);    return (
+        <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            minHeight: '100vh',
+            gap: '20px'
+        }}>            {/* Buttons at the top */}
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                {isMyTurn &&
+                    !animationState.isAnimating &&
+                    !strikerRef.current?.isStrikerMoving &&
+                    (handState.isFlickerActive ? (
+                        <button onClick={handlePlace} style={{ padding: '8px 16px' }}>
+                            Place
+                        </button>
+                    ) : (
+                        <button onClick={handleFlick} style={{ padding: '8px 16px' }}>
+                            Flick
+                        </button>
+                    ))}
+                {onLeaveRoom && (
+                    <button onClick={onLeaveRoom} style={{ padding: '8px 16px' }}>
+                        Leave Room
+                    </button>
+                )}
+            </div>
 
-    return (
-        <div>
+            {/* Game Canvas */}
             <canvas
                 ref={canvasRef}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
                 width={900}
                 height={900}
                 style={{
@@ -527,22 +557,10 @@ function GameCanvas({
                           : isMyTurn && handState.canPlace
                             ? "grab"
                             : "default",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
                 }}
             />
-            <br />
-
-            {isMyTurn &&
-                !animationState.isAnimating &&
-                !strikerRef.current?.isStrikerMoving &&
-                (handState.isFlickerActive ? (
-                    <button onClick={handlePlace} style={{ marginBottom: 8 }}>
-                        Place
-                    </button>
-                ) : (
-                    <button onClick={handleFlick} style={{ marginBottom: 8 }}>
-                        Flick
-                    </button>
-                ))}
         </div>
     );
 }

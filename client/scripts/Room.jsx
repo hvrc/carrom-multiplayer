@@ -367,9 +367,7 @@ export default function Room() {
         return () => {
             socket.off("gameReset");
         };
-    }, [roomName, socket]);
-
-    // handle leave room event
+    }, [roomName, socket]);    // handle leave room event
     const handleLeaveRoom = () => {
         const clientId = sessionStorage.getItem("clientId");
         if (!clientId) {
@@ -380,16 +378,6 @@ export default function Room() {
         socket.emit("leaveRoom", { roomName, clientId });
         localStorage.clear();
         navigate("/");
-    };
-
-    // emit switchTurn event to server
-    const handleSwitchTurn = () => {
-        const newTurn = managerRef.current.switchTurn();
-        socket.emit("switchTurn", {
-            roomName,
-            newTurn,
-            clientId: sessionStorage.getItem("clientId"),
-        });
     };
 
     if (!roomData) {
@@ -403,32 +391,31 @@ export default function Room() {
     const manager = managerRef.current;
     const currentUsername = localStorage.getItem("username");
     const playerRole = localStorage.getItem("playerRole");
-    const isMyTurn = roomData.whoseTurn === playerRole;
-
-    return (
-        <div>
+    const isMyTurn = roomData.whoseTurn === playerRole;    return (
+        <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            minHeight: '100vh',
+            padding: '20px'
+        }}>
             <Board
                 isMyTurn={isMyTurn}
                 socket={socket}
                 roomName={roomName}
                 playerRole={playerRole}
                 manager={manager}
+                onLeaveRoom={handleLeaveRoom}
             />
-            <div>Window owner: {currentUsername}</div>
-            <GameInfoTable
+            {/* <GameInfoTable
                 key={tableRefresh}
                 roomName={roomName}
                 creator={roomData.creator}
                 joiner={roomData.joiner}
                 manager={manager}
                 roomData={roomData}
-            />{" "}
-            <br />
-            {isMyTurn && (
-                <button onClick={handleSwitchTurn}>Switch Turn</button>
-            )}{" "}
-            <br /> <br />
-            <button onClick={handleLeaveRoom}>Leave Room</button> <br /> <br />
+            /> */}
         </div>
     );
 }
