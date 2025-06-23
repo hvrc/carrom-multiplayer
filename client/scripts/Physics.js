@@ -45,8 +45,8 @@ export class Physics {
             if (vn < 0) {
                 // Use minimum restitution of both objects
                 const restitution = Math.min(
-                    a.restitution || 1,
-                    b.restitution || 1,
+                    a.restitution, // || 1,
+                    b.restitution  // || 1,
                 );
 
                 // Calculate impulse

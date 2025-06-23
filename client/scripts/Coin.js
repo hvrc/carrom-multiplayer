@@ -8,13 +8,13 @@ export default class Coin {
         id,
         color = "white",
         radius = 15,
-        coinMass = 1,
+        coinMass = 0.5,
         x = 0,
         y = 0,
         velocity = { x: 0, y: 0 },
         acceleration = { x: 0, y: 0 },
-        restitution = 0.5,
-        friction = 0.98,
+        restitution = 0.6   ,
+        friction = 0.97,
     }) {
         this.id = id;
         this.color = color;

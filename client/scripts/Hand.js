@@ -5,15 +5,16 @@ import Physics from "./Physics.js";
  * Handles all mouse events, striker placement, and flicking mechanics
  */
 export class Hand {
-    // Flick constants
-    static FLICK_MAX_LENGTH = 150;
-    static FLICK_POWER = 0.3;
+    // Flick constants - reduced power for finer linear scaling
+    static FLICK_MAX_LENGTH = 100;
+    static FLICK_POWER = 0.4;  // Reduced base power for finer control
 
     constructor() {
         // State management
         this.isPlacing = false;
         this.canPlace = true;
-        this.isFlickerActive = false;        this.flick = {
+        this.isFlickerActive = false;
+        this.flick = {
             active: false,
             startX: 0,
             startY: 0,
@@ -215,11 +216,21 @@ export class Hand {
         }        // calculate velocity (opposite direction of pull)
         let dx = this.flick.startX - this.flick.endX;
         let dy = this.flick.startY - this.flick.endY;
-        const dist = Math.hypot(dx, dy);
-
-        // Calculate proportional power based on distance pulled
-        // Power scales from 0 to max power based on distance from 0 to max length
-        const powerRatio = Math.min(dist / this.flickMaxLength, 1.0);
+        const dist = Math.hypot(dx, dy);        // Calculate proportional power based on distance pulled
+        // Linear scaling with finest possible precision
+        // Every single pixel of movement creates proportional power increase
+        const distanceRatio = Math.min(dist / this.flickMaxLength, 1.0);
+        
+        // Pure linear scaling: power = ratio (1:1 relationship)
+        // This gives the finest possible control:
+        // - 1 pixel = 0.67% power (ultra-fine)
+        // - 10 pixels = 6.7% power (very fine)  
+        // - 25 pixels = 16.7% power (fine)
+        // - 50 pixels = 33.3% power (moderate)
+        // - 75 pixels = 50% power (medium)
+        // - 100 pixels = 66.7% power (strong)
+        // - 150 pixels = 100% power (maximum)
+        const powerRatio = distanceRatio;
         const effectivePower = Hand.FLICK_POWER * powerRatio;
 
         // Normalize direction vector

@@ -147,7 +147,7 @@ class Animation {
         const boardY = (canvasRef.current.height - Draw.BOARD_SIZE) / 2;
 
         strikerRef.current.update(
-            0.98,
+            0.97,
             this.MOVEMENT_THRESHOLD,
             boardX,
             boardY,
