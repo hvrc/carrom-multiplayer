@@ -672,11 +672,15 @@ function GameCanvas({
             </div>
 
             {/* Game Canvas */}            <canvas
-                ref={canvasRef}
-                onMouseDown={handleMouseDown}
+                ref={canvasRef}                onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
+                onMouseLeave={(e) => handRef.current.handleMouseLeave(e, {
+                    isAnimating: animationState.isAnimating,
+                    isMyTurn,
+                    strikerRef,
+                    isStrikerColliding,
+                })}
                 width={900}
                 height={900}
                 style={{

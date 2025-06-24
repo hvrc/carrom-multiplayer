@@ -43,7 +43,18 @@ export class Hand {
         this.onAnimationStart = null;
         this.onRedraw = null;
         this.onSliderChange = null;
-    }    /**
+
+        // Global mouse tracking state
+        this.isMouseDown = false;
+        this.globalListenersAdded = false;
+        this._lastContext = null;
+
+        // Bind global event handlers
+        this._handleGlobalMouseMove = this._handleGlobalMouseMove.bind(this);
+        this._handleGlobalMouseUp = this._handleGlobalMouseUp.bind(this);
+    }
+
+    /**
      * Set callback functions for communication with parent component
      */
     setCallbacks({
@@ -328,6 +339,18 @@ export class Hand {
                 this.onRedraw();
             }
         }
+
+        // Save context and start global tracking
+        this._lastContext = {
+            isAnimating,
+            isMyTurn,
+            strikerRef,
+            canvasRef,
+            playerRole,
+            isStrikerColliding,
+        };
+        this.isMouseDown = true;
+        this._addGlobalListeners();
     }    /**
      * Handle mouse move event (unified handler)
      */    handleMouseMove(
@@ -424,6 +447,62 @@ export class Hand {
                 this.onRedraw();
             }
         }
+
+        // Use saved context for global moves if needed
+        const ctx = this._lastContext;
+        if (!ctx) return;
+
+        const rect = ctx.canvasRef.current.getBoundingClientRect();
+        let x = e.clientX - rect.left;
+        let y = e.clientY - rect.top;
+
+        if (ctx.playerRole === "joiner") {
+            x = ctx.canvasRef.current.width - x;
+            y = ctx.canvasRef.current.height - y;
+        }        let newEndX, newEndY;
+        let startX = ctx.strikerRef.current.x;  // Always draw from current striker position
+        let startY = ctx.strikerRef.current.y;
+
+        // Calculate relative mouse movement from initial click position
+        const deltaX = x - this.flick.initialClickX;
+        const deltaY = y - this.flick.initialClickY;
+
+        if (this.flick.mode === 'striker') {
+            // Mode 1: Apply relative movement directly from striker center
+            newEndX = ctx.strikerRef.current.x + deltaX;
+            newEndY = ctx.strikerRef.current.y + deltaY;
+        } else if (this.flick.mode === 'remote') {
+            // Mode 2: Apply relative movement from striker center
+            newEndX = ctx.strikerRef.current.x + deltaX;
+            newEndY = ctx.strikerRef.current.y + deltaY;
+        }        // Calculate distance and cap at maximum length
+        const dx = newEndX - startX;
+        const dy = newEndY - startY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // Cap the flick line at maximum length
+        if (distance > this.flickMaxLength) {
+            const directionX = dx / distance;
+            const directionY = dy / distance;
+            newEndX = startX + directionX * this.flickMaxLength;
+            newEndY = startY + directionY * this.flickMaxLength;
+        }
+
+        this._updateState({
+            flick: { 
+                ...this.flick, 
+                active: true, // Ensure flick remains active during movement
+                startX: startX, // Always use current striker position
+                startY: startY,
+                endX: newEndX, 
+                endY: newEndY 
+            },
+        });
+
+        // Redraw to show updated flick line
+        if (this.onRedraw) {
+            this.onRedraw();
+        }
     }/**
      * Handle mouse up event (unified handler)
      */
@@ -511,6 +590,129 @@ export class Hand {
                 this.onRedraw();
             }
         }
+
+        // Clean up global tracking
+        this.isMouseDown = false;
+        this._removeGlobalListeners();
+
+        // Use saved context for global mouseup if needed
+        const ctx = this._lastContext;
+        if (!ctx) return;
+
+        // Prevent flicking if striker is colliding with coins
+        if (isStrikerColliding) {            // Reset flick state without executing the flick
+            this._updateState({
+                isFlickerActive: false,
+                flick: {
+                    active: false,
+                    startX: 0,
+                    startY: 0,
+                    endX: 0,
+                    endY: 0,
+                    mode: null,
+                    initialClickX: 0,
+                    initialClickY: 0,
+                },
+            });
+            
+            // Redraw to clear flick line
+            if (this.onRedraw) {
+                this.onRedraw();
+            }
+            return;
+        }        // Calculate flick power and direction based on mode
+        let dx, dy;
+          if (this.flick.mode === 'striker') {
+            // Mode 1: Direction is OPPOSITE of drag (striker moves away from drag direction)
+            dx = this.flick.startX - this.flick.endX;  // Reversed direction
+            dy = this.flick.startY - this.flick.endY;  // Reversed direction
+        } else if (this.flick.mode === 'remote') {
+            // Mode 2: Direction is OPPOSITE of flick line (same slingshot effect as Mode 1)
+            dx = this.flick.startX - this.flick.endX;  // Reversed direction (opposite of flick line)
+            dy = this.flick.startY - this.flick.endY;  // Reversed direction (opposite of flick line)
+        }
+        
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance > 5) { // Minimum distance to register flick
+            // Calculate power (normalize distance to 0-1 range)
+            const normalizedDistance = Math.min(distance / this.flickMaxLength, 1);
+            const power = normalizedDistance * Hand.FLICK_POWER;
+
+            // Apply velocity in the calculated direction
+            const velocityX = (dx / distance) * power * 100;
+            const velocityY = (dy / distance) * power * 100;
+
+            strikerRef.current.velocity.x = velocityX;
+            strikerRef.current.velocity.y = velocityY;
+            strikerRef.current.isStrikerMoving = true;
+
+            // Start animation
+            if (this.onAnimationStart) {
+                this.onAnimationStart();
+            }
+        }        // Reset flick state
+        this._updateState({
+            isFlickerActive: false,
+            flick: {
+                ...this.flick,
+                active: false,
+                mode: null,
+                initialClickX: 0,
+                initialClickY: 0,
+            },
+        });
+
+        // Redraw to clear flick line
+        if (this.onRedraw) {
+            this.onRedraw();
+        }
+    }    /**
+     * Add global window-level mouse event listeners
+     */
+    _addGlobalListeners() {
+        if (!this.globalListenersAdded) {
+            window.addEventListener('mousemove', this._handleGlobalMouseMove);
+            window.addEventListener('mouseup', this._handleGlobalMouseUp);
+            this.globalListenersAdded = true;
+        }
+    }
+
+    /**
+     * Remove global window-level mouse event listeners
+     */
+    _removeGlobalListeners() {
+        if (this.globalListenersAdded) {
+            window.removeEventListener('mousemove', this._handleGlobalMouseMove);
+            window.removeEventListener('mouseup', this._handleGlobalMouseUp);
+            this.globalListenersAdded = false;
+        }
+    }
+
+    /**
+     * Global mousemove handler for maintaining flick outside board
+     */
+    _handleGlobalMouseMove(e) {
+        if (this.isMouseDown && this._lastContext) {
+            this.handleMouseMove(e, this._lastContext);
+        }
+    }
+
+    /**
+     * Global mouseup handler for finalizing flick anywhere
+     */
+    _handleGlobalMouseUp(e) {
+        if (this.isMouseDown && this._lastContext) {
+            this.handleMouseUp(e, this._lastContext);
+        }
+    }
+
+    /**
+     * No-op for mouse leaving canvas - maintain flick until actual mouseup
+     */
+    handleMouseLeave(e, context) {
+        // We intentionally do nothing here to keep the flick active
+        // The global mouse handlers will take care of move/up events
     }    /**
      * Calculate slider boundaries based on legal striker movement area
      * Restricts slider to the base width (legal striker X axis) instead of full board
