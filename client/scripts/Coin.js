@@ -60,6 +60,7 @@ export default class Coin {
             ctx.fill();
         } else if (this.color === "red") {
             ctx.fillStyle = "red";
+            ctx.strokeStyle = "red";
             ctx.fill();
         }
 

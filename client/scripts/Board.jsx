@@ -15,9 +15,32 @@ function GameCanvas({
     onLeaveRoom,
     creatorUsername = "",
     joinerUsername = "",
-}){    // Add custom CSS for slider thumb styling
-    useEffect(() => {        const style = document.createElement('style');
-        style.textContent = `            /* WebKit browsers (Chrome, Safari) - HIDDEN */
+}) {
+    const [showHelp, setShowHelp] = useState(false);
+
+    // Help text toggle handler
+    const handleHelpToggle = () => {
+        setShowHelp(prev => !prev);
+    };
+
+    // Add custom CSS for slider thumb styling
+    useEffect(() => {
+        const style = document.createElement('style');
+        style.textContent = `                 <div style={{
+                    width: '900px',
+                    padding: '20px',
+                    backgroundColor: 'white',
+                    border: '2px solid black',
+                    fontFamily: 'Helvetica, Arial, sans-serif',
+                    fontSize: '16px',
+                    position: 'absolute',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    pointerEvents: 'none',
+                    zIndex: 2
+                }}>
+                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+                </div>)WebKit browsers (Chrome, Safari) - HIDDEN */
             input[type="range"]::-webkit-slider-thumb {
                 -webkit-appearance: none;
                 appearance: none;
@@ -672,18 +695,21 @@ function GameCanvas({
                 height: '40px'
             }}>
                 {/* Help Button - Left aligned */}
-                <button style={{
-                    position: 'absolute',
-                    left: '0',
-                    width: '40px',
-                    height: '40px',
-                    backgroundColor: 'white',
-                    border: '2px solid black',
-                    cursor: 'pointer',
-                    fontWeight: 'bold',
-                    fontFamily: 'Helvetica, Arial, sans-serif',
-                    fontSize: '24px'
-                }}>?</button>
+                <button 
+                    onClick={handleHelpToggle}
+                    style={{
+                        position: 'absolute',
+                        left: '0',
+                        width: '40px',
+                        height: '40px',
+                        backgroundColor: 'white',
+                        border: '2px solid black',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        fontFamily: 'Helvetica, Arial, sans-serif',
+                        fontSize: '24px'
+                    }}
+                >{showHelp ? 'X' : '?'}</button>
 
                 {/* Info bar - center aligned */}
                 <div style={{
@@ -745,14 +771,37 @@ function GameCanvas({
                     border: "1px solid #ccc",
                     borderRadius: "4px",
                 }}
-            />{/* Striker Position Slider - Always visible, but only interactive when appropriate */}
+            />{/* Help text - appears below board but above slider */}            {showHelp && (                <div                style={{
+                    width: '855px', // Match frame size from Draw.FRAME_SIZE
+                    padding: '20px',
+                    backgroundColor: 'white',
+                    border: '2px solid black',
+                    fontFamily: 'Helvetica, Arial, sans-serif',
+                    fontSize: '20px',
+                    position: 'absolute',
+                    top: '600px', // 40px top bar + 75px board offset + 375px half board
+                    transform: 'translateY(-50%)',
+                    pointerEvents: 'none',
+                    zIndex: 2,
+                    textTransform: 'uppercase',
+                    textAlign: 'center'
+                }}>
+                    drag along the area below the board to move the striker <br />
+                    drag anywhere on the board to aim and release to flick <br />
+                    the futher you drag the harder you'll flick <br />
+                </div>
+            )}
+
+            {/* Striker Position Slider - Always visible, but only interactive when appropriate */}
             <div style={{
                 width: '470px', // Match base width (legal striker area) instead of full board
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 height: '160px', // Increased container height for tall thumb
-                justifyContent: 'center'
+                justifyContent: 'center',
+                position: 'relative',
+                zIndex: 1
             }}>
                 <input
                     type="range"
