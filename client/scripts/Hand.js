@@ -283,21 +283,19 @@ export class Hand {
         if (playerRole === "joiner") {
             x = canvasRef.current.width - x;
             y = canvasRef.current.height - y;
-        }
-
-        // Check if striker is in idle state (not moving)
-        if (!strikerRef.current.isStrikerMoving) {
+        }        // Check if striker is in idle state (not moving) AND not colliding with coins
+        if (!strikerRef.current.isStrikerMoving && !isStrikerColliding) {
             // Start flick interaction - click anywhere on board
             this._updateState({
                 isFlickerActive: true,
                 flick: {
-                    ...this.flick,
-                    active: true,
+                    active: true, // Explicitly set active to true
                     startX: strikerRef.current.x,
                     startY: strikerRef.current.y,
                     endX: x,
                     endY: y,
-                },            });
+                },
+            });
 
             // Redraw to show flick line
             if (this.onRedraw) {
@@ -306,8 +304,7 @@ export class Hand {
         }
     }    /**
      * Handle mouse move event (unified handler)
-     */
-    handleMouseMove(
+     */    handleMouseMove(
         e,
         {
             isAnimating,
@@ -318,12 +315,35 @@ export class Hand {
             coinsRef,
             socket,
             roomName,
+            isStrikerColliding,
         },
     ) {
         // block all input when animation is active
         if (isAnimating || !isMyTurn) return;
 
-        if (this.isFlickerActive && strikerRef.current) {
+        // Update flick line when we're in flick mode and have an active flick
+        // BUT stop flicking immediately if striker is now colliding with coins
+        if (this.isFlickerActive && this.flick.active && strikerRef.current) {
+            // If striker is now colliding, cancel the flick interaction
+            if (isStrikerColliding) {
+                this._updateState({
+                    isFlickerActive: false,
+                    flick: {
+                        active: false,
+                        startX: 0,
+                        startY: 0,
+                        endX: 0,
+                        endY: 0,
+                    },
+                });
+                
+                // Redraw to clear flick line
+                if (this.onRedraw) {
+                    this.onRedraw();
+                }
+                return;
+            }
+
             const rect = canvasRef.current.getBoundingClientRect();
             let x = e.clientX - rect.left;
             let y = e.clientY - rect.top;
@@ -347,14 +367,20 @@ export class Hand {
             }
 
             this._updateState({
-                flick: { ...this.flick, endX: x, endY: y },            });
+                flick: { 
+                    ...this.flick, 
+                    active: true, // Ensure flick remains active during movement
+                    endX: x, 
+                    endY: y 
+                },
+            });
 
             // Redraw to show updated flick line
             if (this.onRedraw) {
                 this.onRedraw();
             }
         }
-    }    /**
+    }/**
      * Handle mouse up event (unified handler)
      */
     handleMouseUp(
@@ -371,9 +397,28 @@ export class Hand {
         },
     ) {
         // block all input when animation is active
-        if (isAnimating || !isMyTurn) return;
+        if (isAnimating || !isMyTurn) return;        if (this.isFlickerActive && strikerRef.current) {
+            // Prevent flicking if striker is colliding with coins
+            if (isStrikerColliding) {
+                // Reset flick state without executing the flick
+                this._updateState({
+                    isFlickerActive: false,
+                    flick: {
+                        active: false,
+                        startX: 0,
+                        startY: 0,
+                        endX: 0,
+                        endY: 0,
+                    },
+                });
+                
+                // Redraw to clear flick line
+                if (this.onRedraw) {
+                    this.onRedraw();
+                }
+                return;
+            }
 
-        if (this.isFlickerActive && strikerRef.current) {
             // Calculate flick power and direction
             const dx = this.flick.endX - this.flick.startX;
             const dy = this.flick.endY - this.flick.startY;

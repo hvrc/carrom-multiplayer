@@ -202,13 +202,21 @@ function GameCanvas({
                 }
             },
             onAnimationStart: () =>
-                animationRef.current.updateState({ isAnimating: true }),
-            onRedraw: (collisionState) => {
+                animationRef.current.updateState({ isAnimating: true }),            onRedraw: (collisionState) => {
                 const ctx = canvasRef.current?.getContext("2d");
                 if (ctx) {
+                    // Use current hand state directly to avoid React state timing issues
+                    const currentGameState = {
+                        strikerRef,
+                        coinsRef,
+                        isStrikerColliding,
+                        isFlickerActive: handRef.current.isFlickerActive,
+                        flick: handRef.current.flick,
+                        flickMaxLength: handRef.current.flickMaxLength,
+                    };
                     Draw.drawBoard(
                         ctx,
-                        createGameState(),
+                        currentGameState,
                         playerRole,
                         collisionState,
                     );
@@ -268,9 +276,7 @@ function GameCanvas({
             playerRole,
             isStrikerColliding,
         });
-    };
-
-    const handleMouseMove = (e) => {
+    };    const handleMouseMove = (e) => {
         handRef.current.handleMouseMove(e, {
             isAnimating: animationState.isAnimating,
             isMyTurn,
@@ -280,6 +286,7 @@ function GameCanvas({
             coinsRef,
             socket,
             roomName,
+            isStrikerColliding,
         });
     };
 
@@ -616,23 +623,11 @@ function GameCanvas({
         const intervalId = setInterval(checkCollisions, 16); // ~60fps
 
         return () => clearInterval(intervalId);
-    }, [isStrikerColliding, coins]); // re-run when coins change
-
-    // separate useEffect for canvas event listeners
+    }, [isStrikerColliding, coins]); // re-run when coins change    // separate useEffect for initial canvas drawing
     useEffect(() => {
         const canvas = canvasRef.current;
         const ctx = canvas.getContext("2d");
         Draw.drawBoard(ctx, createGameState(), playerRole);
-        canvas.addEventListener("mousedown", handleMouseDown);
-        canvas.addEventListener("mousemove", handleMouseMove);
-        canvas.addEventListener("mouseup", handleMouseUp);
-        canvas.addEventListener("mouseleave", handleMouseUp);
-        return () => {
-            canvas.removeEventListener("mousedown", handleMouseDown);
-            canvas.removeEventListener("mousemove", handleMouseMove);
-            canvas.removeEventListener("mouseup", handleMouseUp);
-            canvas.removeEventListener("mouseleave", handleMouseUp);
-        };
     }, [
         handState.isPlacing,
         isMyTurn,
@@ -663,12 +658,12 @@ function GameCanvas({
                 )}
             </div>
 
-            {/* Game Canvas */}
-            <canvas
+            {/* Game Canvas */}            <canvas
                 ref={canvasRef}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
                 width={900}
                 height={900}
                 style={{
@@ -683,7 +678,7 @@ function GameCanvas({
                     border: "1px solid #ccc",
                     borderRadius: "4px",
                 }}
-            />            {/* Striker Position Slider - Always visible, but only interactive when appropriate */}
+            />{/* Striker Position Slider - Always visible, but only interactive when appropriate */}
             <div style={{
                 width: '470px', // Match base width (legal striker area) instead of full board
                 display: 'flex',

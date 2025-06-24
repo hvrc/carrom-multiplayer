@@ -276,9 +276,16 @@ export class Draw {
     /**
      * Draw flick line when active
      * @private
-     */
-    static _drawFlickLine(ctx, gameState, overrideCollisionState) {
-        if (!gameState.isFlickerActive || !gameState.flick.active) return;
+     */    static _drawFlickLine(ctx, gameState, overrideCollisionState) {
+        // Draw flick line if flickering is active OR if flick has been started (more lenient condition)
+        if (!gameState.isFlickerActive && !gameState.flick.active) return;
+        
+        // Extra safety check to ensure we have valid flick coordinates
+        if (!gameState.flick || 
+            gameState.flick.startX === undefined || 
+            gameState.flick.startY === undefined ||
+            gameState.flick.endX === undefined || 
+            gameState.flick.endY === undefined) return;
 
         ctx.save();
 
