@@ -29,13 +29,18 @@ const generateClientId = () => {
 // we dont want it to connect automatically,
 // we want reconnections to be enabled, 5 attempts with a 1 second delay
 // and we want to pass the client id as a query parameter
-const socket = io("http://localhost:3000", {
-    autoConnect: false,
-    reconnection: true,
-    reconnectionAttempts: 5,
-    reconnectionDelay: 1000,
-    query: { clientId: generateClientId() },
-});
+const socket = io(
+    process.env.NODE_ENV === "production"
+        ? "https://backend-dot-carrom-2222.el.r.appspot.com" // Fixed backend URL
+        : "http://localhost:3000",
+    {
+        autoConnect: false,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        query: { clientId: generateClientId() },
+    },
+);
 
 // start heartbeat
 // get client id from session storage
@@ -45,7 +50,8 @@ const socket = io("http://localhost:3000", {
 let heartbeatInterval;
 const startHeartbeat = () => {
     const clientId = sessionStorage.getItem("clientId");
-    if (clientId && !heartbeatInterval) {        heartbeatInterval = setInterval(() => {
+    if (clientId && !heartbeatInterval) {
+        heartbeatInterval = setInterval(() => {
             socket.emit("heartbeat", { clientId });
         }, 5 * 60 * 1000);
     }

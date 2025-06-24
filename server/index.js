@@ -1,17 +1,32 @@
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import cors from 'cors';
 
 // express() returns ?
 // createServer() creates an HTTP server, what is the nature of this server?
 // Server() creates a socket.io server that listens on the HTTP server
 // cors allows all origins *, and  allows GET and POST methods
 const app = express();
+
+// Add CORS middleware for Express routes
+app.use(cors({
+    origin: [
+        "https://carrom-2222.el.r.appspot.com",
+        "http://localhost:3001"
+    ],
+    credentials: true
+}));
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
-        origin: "*",
+        origin: [
+            "https://carrom-2222.el.r.appspot.com",  // Your frontend URL
+            "http://localhost:3001"                   // Local development
+        ],
         methods: ["GET", "POST"],
+        credentials: true
     },
 });
 
@@ -19,7 +34,7 @@ const io = new Server(httpServer, {
 // rooms is a Map to store active rooms, map stores key-value pairs
 // lastHeartbeat is a Map to track the last heartbeat time for each client
 // 5 minutes heartbeat timeout (client sends every 5 minutes)
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const rooms = new Map();
 const lastHeartbeat = new Map();
 const heartbeatTimeout = 5 * 60 * 1000;
@@ -123,17 +138,22 @@ setInterval(() => {
 // room membership abilities like join, leave
 // sets a client id through the socket handshake query,
 io.on("connection", (socket) => {
+    console.log("New client connected:", socket.id);
+    
     const clientId = socket.handshake.query.clientId;
+    console.log("Client ID:", clientId);
 
-    // if client id has not been set or if client id's value is null/undefined,
-    // emit an error to all? clients
-    // disconnect the socket from ?
-    // return to stop further processing
     if (!clientId || clientId === "null" || clientId === "undefined") {
+        console.error("Invalid client ID:", clientId);
         socket.emit("error", "Invalid client ID");
         socket.disconnect();
         return;
     }
+
+    // Add error handling for socket events
+    socket.on("error", (error) => {
+        console.error("Socket error:", error);
+    });
 
     // add to the lastHeartbeat map with the current time and clientId
     // listen for heartbeat events from the client,

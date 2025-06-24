@@ -30,6 +30,10 @@ no overlapping
 starting grid
 longer heartbeats in server?
 
+holy lag
+blue button text on mobile
+no slider on mobile
+
 player should be able to leave room, and same/new player should be able to join
 if both players leave, room should be deleted
 player should be able to refresh while in room

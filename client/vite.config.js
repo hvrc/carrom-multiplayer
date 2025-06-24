@@ -6,5 +6,10 @@ export default defineConfig({
   server: {
     port: 3001,
     strictPort: true
+  },
+  build: {
+    outDir: 'dist',
+    assetsDir: '.',
+    sourcemap: false
   }
 });
