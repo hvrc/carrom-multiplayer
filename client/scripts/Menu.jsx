@@ -12,12 +12,9 @@ export default function Menu() {
     // array destructuring
     // use state ("") returns two things,
     // the current value, which starts as an empty string
-    // a function to change that value
-
-    const [joinUsername, setJoinUsername] = useState("");
-    const [joinRoomName, setJoinRoomName] = useState("");
-    const [createUsername, setCreateUsername] = useState("");
-    const [createRoomName, setCreateRoomName] = useState("");
+    // a function to change that value    // Shared state for both join and create operations
+    const [username, setUsername] = useState("");
+    const [roomName, setRoomName] = useState("");
     const [error, setError] = useState("");
     const navigate = useNavigate();
 
@@ -35,20 +32,21 @@ export default function Menu() {
         const roomName = localStorage.getItem("roomName");
         if (!roomName) { localStorage.clear();}
         return () => {
+            // Clean up listeners when component unmounts
             socket.off("playerJoined");
             socket.off("error");
         };
     }, []);
 
     // handles the creation of a room
-    // if either create username or create room name are false, sets an error asking user to enter both
-    // create username and create room name are both strings, set when user types in the input fields to join a room
+    // if either username or room name are false, sets an error asking user to enter both
+    // username and room name are both strings, set when user types in the shared input fields
     // if socket is not connected, connects to the server
     // gets client id from the session storage
     // if there is no client id found, sets an error asking user to refresh page and retry
     // emits a createRoom event to the server, with room name, username and client id
     const handleCreateRoom = () => {
-        if (!createUsername || !createRoomName) {
+        if (!username || !roomName) {
             setError("Please enter a username and room name");
             return;
         }
@@ -64,52 +62,57 @@ export default function Menu() {
             return;
         }
 
-        socket.emit("createRoom", {
-            roomName: createRoomName,
-            username: createUsername,
-            clientId,
-        });
-        
-        // these const handle... blocks are functions that are automatically called by socket.io,
-        // when the socket receives a message of type playerJoined from the server
-        // the data parameter is being filled by the server,
-        // with info like username, room name etc
-        // listens for player joined event
-        // if username in the data equals the username set while trying to create a room
-        // and room name in data equals the room name set ...
-        // sets the create room username, room name and player role,
-        // stop listening for playerJoined events,
-        // navigate to the url with the name of the room
+        // Clear any existing error
+        setError("");
+
+        // Clean up any existing listeners
+        socket.off("playerJoined");
+        socket.off("error");
+
+        // Set up event listeners for this specific operation
         const handlePlayerJoined = (data) => {
-            if (data.username === createUsername && data.roomName === createRoomName) {
-                localStorage.setItem("username", createUsername);
-                localStorage.setItem("roomName", createRoomName);
+            console.log("Creator received playerJoined event:", data);
+            if (data.username === username && data.roomName === roomName) {
+                localStorage.setItem("username", username);
+                localStorage.setItem("roomName", roomName);
                 localStorage.setItem("playerRole", "creator");
+                
+                // Clean up listeners
                 socket.off("playerJoined", handlePlayerJoined);
-                navigate(`/${createRoomName}`);
+                socket.off("error", handleError);
+                
+                console.log("Creator navigating to room:", roomName);
+                navigate(`/${roomName}`);
             }
         };
 
-        // socket on means we are asking browser/client to listen to playerJoined events
-        // if client hears an error, we set the received message as the error,
-        // and we stop listening for playerJoined events
-
-        socket.on("playerJoined", handlePlayerJoined);
-        socket.on("error", (msg) => {
+        const handleError = (msg) => {
+            console.log("Create room error:", msg);
             setError(msg);
             socket.off("playerJoined", handlePlayerJoined);
+            socket.off("error", handleError);
+        };
+
+        socket.on("playerJoined", handlePlayerJoined);
+        socket.on("error", handleError);
+
+        console.log("Emitting createRoom event:", { roomName, username, clientId });
+        socket.emit("createRoom", {
+            roomName: roomName,
+            username: username,
+            clientId,
         });
     };
 
     // handles the joining of a room
-    // if either join username or join room name are false, sets an error asking user to enter both
-    // join username and join room name are both strings, set when user types in the input fields to join a room
+    // if either username or room name are false, sets an error asking user to enter both
+    // username and room name are both strings, set when user types in the shared input fields
     // if socket is not connected, connects to the server
     // gets client id from the session storage
     // if there is no client id found, sets an error asking user to refresh page and retry
     // emits a joinRoom event to the server, with room name, username and client id
     const handleJoinRoom = () => {
-        if (!joinUsername || !joinRoomName) {
+        if (!username || !roomName) {
             setError("Please enter a username and room name");
             return;
         }
@@ -125,75 +128,124 @@ export default function Menu() {
             return;
         }
 
-        socket.emit("joinRoom", {
-            roomName: joinRoomName,
-            username: joinUsername,
-            clientId,
-        });
-        
-        // listens for player joined event
-        // if username in the data equals the username set while trying to create a room
-        // and room name in data equals the room name set ...
-        // sets the join room username, room name and player role,
-        // navigate to the url with the name of the room
+        // Clear any existing error
+        setError("");
+
+        // Clean up any existing listeners
+        socket.off("playerJoined");
+        socket.off("error");
+
+        // Set up event listeners for this specific operation
         const handlePlayerJoined = (data) => {
-            if (data.username === joinUsername && data.roomName === joinRoomName) {
-                localStorage.setItem("username", joinUsername);
-                localStorage.setItem("roomName", joinRoomName);
+            console.log("Joiner received playerJoined event:", data);
+            if (data.username === username && data.roomName === roomName) {
+                localStorage.setItem("username", username);
+                localStorage.setItem("roomName", roomName);
                 localStorage.setItem("playerRole", "joiner");
+                
+                // Clean up listeners
                 socket.off("playerJoined", handlePlayerJoined);
-                navigate(`/${joinRoomName}`);
+                socket.off("error", handleError);
+                
+                console.log("Joiner navigating to room:", roomName);
+                navigate(`/${roomName}`);
             }
         };
-        
-        // client listens for playerJoined events sent by the server
-        // ...
-        socket.on("playerJoined", handlePlayerJoined);
-        socket.on("error", (msg) => {
+
+        const handleError = (msg) => {
+            console.log("Join room error:", msg);
             setError(msg);
             socket.off("playerJoined", handlePlayerJoined);
-        });
-    };
+            socket.off("error", handleError);
+        };
 
-    // menu form of creating and joining rooms
+        socket.on("playerJoined", handlePlayerJoined);
+        socket.on("error", handleError);
+
+        console.log("Emitting joinRoom event:", { roomName, username, clientId });
+        socket.emit("joinRoom", {
+            roomName: roomName,
+            username: username,
+            clientId,
+        });    };
+    
+    // menu form with shared inputs for creating and joining rooms
     // displays error message on top
-    // returns a div with two sections, one for joining a room and one for creating a room
-    // setJoinUsername, setJoinRoomName, setCreateUsername, setCreateRoomName come from,
-    // the use state declarions at the top
-    return (
-        <div>
-            {error && <p>{error}</p>}
-            <div>
-                <p>Join Room</p>
-                <input
-                    type="text"
-                    placeholder="Username"
-                    value={joinUsername}
-                    onChange={(e) => setJoinUsername(e.target.value)}
-                />
-                <input
-                    type="text"
-                    placeholder="Room Name"
-                    value={joinRoomName}
-                    onChange={(e) => setJoinRoomName(e.target.value)}
-                />
-                <button onClick={handleJoinRoom}>Join</button>
-            </div>
-            <div>
-                <p>Create Room</p>
-                <input
-                    type="text"
-                    placeholder="Username"
-                    value={createUsername}
-                    onChange={(e) => setCreateUsername(e.target.value)}
-                />
-                <input
-                    type="text"
-                    placeholder="New Room Name"
-                    value={createRoomName}
-                    onChange={(e) => setCreateRoomName(e.target.value)}
-                />
-                <button onClick={handleCreateRoom}>Create</button>
+    // returns a div with shared input fields for username and room name
+    // and two separate buttons for joining or creating a room
+    // setUsername, setRoomName come from the shared state declarations at the top
+      return (
+        <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: '100vh'
+        }}>            <div style={{textAlign: 'center'}}>
+                <h1>CARROM</h1>
+                
+                <div>
+                    <input
+                        type="text"
+                        placeholder="USERNAME"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        style={{
+                            borderRadius: '0',
+                            textAlign: 'center',
+                            width: '350px',
+                            height: '40px',
+                            fontSize: '16px'
+                        }}
+                    />
+                    <br /><br />
+                    
+                    <input
+                        type="text"
+                        placeholder="ROOM NAME"
+                        value={roomName}
+                        onChange={(e) => setRoomName(e.target.value)}
+                        style={{
+                            borderRadius: '0',
+                            textAlign: 'center',
+                            width: '350px',
+                            height: '40px',
+                            fontSize: '16px'
+                        }}
+                    />
+                    <br /><br />
+                      <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                        <button 
+                            onClick={handleJoinRoom}
+                            style={{
+                                borderRadius: '0',
+                                textAlign: 'center',
+                                width: '170px',
+                                height: '40px',
+                                fontSize: '16px',
+                                backgroundColor: 'white'
+                            }}
+                        >
+                            JOIN ROOM
+                        </button>
+                        <button 
+                            onClick={handleCreateRoom}
+                            style={{
+                                borderRadius: '0',
+                                textAlign: 'center',
+                                width: '170px',
+                                height: '40px',
+                                fontSize: '16px',
+                                backgroundColor: 'white'
+                            }}
+                        >
+                            CREATE ROOM                        </button>
+                        
+                    </div>
+                    
+                    <div style={{ height: '30px', marginTop: '20px' }}>
+                        {error && <p style={{color: 'red', margin: '0'}}>{error}</p>}
+                    </div>
+                </div>
             </div>
         </div>
     );
