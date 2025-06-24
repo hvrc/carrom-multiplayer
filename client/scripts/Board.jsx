@@ -634,13 +634,26 @@ function GameCanvas({
         handState.isFlickerActive,
         handState.flick,
     ]);
-    
-    // cleanup pending actions on component unmount or room change
+      // cleanup pending actions on component unmount or room change
     useEffect(() => {
         return () => {
             animationRef.current.cleanup();
         };
-    }, [roomName]);    return (
+    }, [roomName]);
+    
+    // handle room closed event - return to menu if any player leaves
+    useEffect(() => {
+        if (!socket || !onLeaveRoom) return;
+
+        const handleRoomClosed = () => {
+            onLeaveRoom();
+        };
+
+        socket.on("roomClosed", handleRoomClosed);
+        return () => {
+            socket.off("roomClosed", handleRoomClosed);
+        };
+    }, [socket, onLeaveRoom]);return (
         <div style={{ 
             display: 'flex', 
             flexDirection: 'column', 

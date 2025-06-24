@@ -41,14 +41,13 @@ const socket = io("http://localhost:3000", {
 // get client id from session storage
 // if client id exists and heartbeat interval is not set,
 // send an heartbeart emit to the server with the client id,
-// every 5 seconds
-// i might want to increase this interval !
+// every 5 minutes
 let heartbeatInterval;
 const startHeartbeat = () => {
     const clientId = sessionStorage.getItem("clientId");
     if (clientId && !heartbeatInterval) {        heartbeatInterval = setInterval(() => {
             socket.emit("heartbeat", { clientId });
-        }, 30000);
+        }, 5 * 60 * 1000);
     }
 };
 

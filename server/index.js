@@ -18,11 +18,11 @@ const io = new Server(httpServer, {
 // port for the server to listen on
 // rooms is a Map to store active rooms, map stores key-value pairs
 // lastHeartbeat is a Map to track the last heartbeat time for each client
-// 10 seconds heartbeat timeout
+// 5 minutes heartbeat timeout (client sends every 5 minutes)
 const PORT = 3000;
 const rooms = new Map();
 const lastHeartbeat = new Map();
-const heartbeatTimeout = 10 * 1000;
+const heartbeatTimeout = 5 * 60 * 1000;
 
 // this function takes a room name and a creator object,
 // what is the nature of the creator object?
@@ -92,54 +92,15 @@ setInterval(() => {
     const now = Date.now();
     lastHeartbeat.forEach((lastTime, clientId) => {
         if (now - lastTime > heartbeatTimeout) {
-            rooms.forEach((room, roomName) => {
-
-                // if the room creator has been set and,
-                // if the first client id being iterated over matches the CREATOR's client id,
+            rooms.forEach((room, roomName) => {                // if either the creator or joiner leaves, delete the room and notify all players
                 if (room.creator && room.creator.clientId === clientId) {
-
-                    // if the room's joiner has been set,
-                    // set the room creator to have the joiner's username and client id,
-                    // set the joiner to null,
-                    // delete the client id from the room's client ids set,
-                    // emit a room update event to the room with the new creator and no joiner
-                    if (room.joiner) {
-                        room.creator = {
-                            username: room.joiner.username,
-                            clientId: room.joiner.clientId,
-                        };
-                        room.joiner = null;
-                        room.clientIds.delete(clientId);
-                        io.to(roomName).emit("roomUpdate", {
-                            roomName,
-                            creator: { username: room.creator.username },
-                            joiner: null,
-                        });
-
-                    // else if room has no joiner, 
-                    // emit a roomClosed event to th e room, with a message
-                    // which deletes the room from the rooms map
-                    } else {
-                        rooms.delete(roomName);
-                        io.to(roomName).emit(
-                            "roomClosed",
-                            "Creator has left the room",
-                        );
-                    }
-
-                // else if the room's joiner has been set and
-                // if the first client id being iterated over matches the JOINER's client id,
-                // set the joiner to null,
-                // delete the client id from the room's client ids set,
-                // emit a room update event to the room with the creator and no joiner
+                    // Creator left - close the room
+                    io.to(roomName).emit("roomClosed", "Creator has left the room");
+                    rooms.delete(roomName);
                 } else if (room.joiner && room.joiner.clientId === clientId) {
-                    room.joiner = null;
-                    room.clientIds.delete(clientId);
-                    io.to(roomName).emit("roomUpdate", {
-                        roomName,
-                        creator: { username: room.creator.username },
-                        joiner: null,
-                    });
+                    // Joiner left - close the room  
+                    io.to(roomName).emit("roomClosed", "Player has left the room");
+                    rooms.delete(roomName);
                 }
             });
 
@@ -499,10 +460,24 @@ io.on("connection", (socket) => {
             lastHeartbeat.delete(incomingClientId);
             cleanupEmptyRooms();
         }
-    });
-
-    // handle client disconnection, no immediate action, rely on heartbeat
+    });    // handle client disconnection - if either player leaves, close the room
     socket.on("disconnect", () => {
+        // Find and close any room this client was in
+        rooms.forEach((room, roomName) => {
+            if (room.creator && room.creator.clientId === socket.id) {
+                // Creator disconnected - close the room
+                io.to(roomName).emit("roomClosed", "Creator has left the room");
+                rooms.delete(roomName);
+            } else if (room.joiner && room.joiner.clientId === socket.id) {
+                // Joiner disconnected - close the room
+                io.to(roomName).emit("roomClosed", "Player has left the room");
+                rooms.delete(roomName);
+            }
+        });
+        
+        // Clean up heartbeat tracking
+        lastHeartbeat.delete(socket.id);
+        
         cleanupEmptyRooms();
     });
 
