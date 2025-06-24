@@ -29,26 +29,17 @@ animation for pocketing coins, striker
 no overlapping
 starting grid
 
-refactor
-better physics
-fix slow speed on joiner window
 longer heartbeats in server?
-refresh and retry bug
-player should be able to refresh while in room
 player should be able to leave room, and same/new player should be able to join
 if both players leave, room should be deleted
-figure out what room is doing
-intial coin counting should be dynamic
-constants file
-refact board.jsx
-remove unused variables and functions
-useState, useRef, versus custom classes in Hand & Animation
-better game state management
-
-console logs to html, more ui
+player should be able to refresh while in room
+fix slow speed on joiner window
+refresh and retry bug
+better physics
+refactor
+more ui
 assign more points for queen
 room scoreboard
-
 board, coin designs
 mobile controls
 sound, synth idea
