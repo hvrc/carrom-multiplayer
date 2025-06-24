@@ -6,6 +6,36 @@ import Hand from "./Hand";
 import Animation from "./Animation";
 import * as Events from "./Events";
 
+// Add custom hook for responsive scaling
+function useResponsiveScale() {
+    const [scale, setScale] = useState(1);
+
+    useEffect(() => {
+        const updateScale = () => {
+            const isMobile = window.innerWidth <= 768;
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            
+            if (isMobile) {
+                // Mobile: fit to window width with small margins
+                const horizontalScale = (width - 20) / Draw.FRAME_SIZE;
+                setScale(horizontalScale);
+            } else {                // Desktop: moderately zoomed out view
+                const horizontalScale = (width - 100) / Draw.FRAME_SIZE;
+                const verticalScale = (height - 100) / Draw.FRAME_SIZE;
+                // Use 0.65 for moderate zoom out on desktop
+                setScale(Math.min(horizontalScale, verticalScale) * 0.7);
+            }
+        };
+
+        updateScale();
+        window.addEventListener('resize', updateScale);
+        return () => window.removeEventListener('resize', updateScale);
+    }, []);
+
+    return scale;
+}
+
 function GameCanvas({
     isMyTurn = true,
     socket,
@@ -291,7 +321,7 @@ function GameCanvas({
         setHandState(handRef.current.getState());
     };
 
-    // Mouse event handlers delegated to Hand class
+    // Mouse and touch event handlers delegated to Hand class
     const handleMouseDown = (e) => {
         handRef.current.handleMouseDown(e, {
             isAnimating: animationState.isAnimating,
@@ -301,31 +331,116 @@ function GameCanvas({
             playerRole,
             isStrikerColliding,
         });
-    };    const handleMouseMove = (e) => {
+    };
+
+    const handleMouseMove = (e) => {
         handRef.current.handleMouseMove(e, {
-            isAnimating: animationState.isAnimating,
             isMyTurn,
             strikerRef,
             canvasRef,
             playerRole,
-            coinsRef,
-            socket,
-            roomName,
-            isStrikerColliding,
         });
     };
 
     const handleMouseUp = (e) => {
         handRef.current.handleMouseUp(e, {
-            isAnimating: animationState.isAnimating,
             isMyTurn,
             strikerRef,
             isStrikerColliding,
-            coinsRef,
-            socket,
-            roomName,
-            playerRole,
         });
+    };    // Convert touch event to canvas coordinates
+    const getTouchPosition = (touch, canvas) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        return {
+            x: (touch.clientX - rect.left) * scaleX,
+            y: (touch.clientY - rect.top) * scaleY
+        };
+    };
+
+    // Store the last known touch position for touch end
+    const lastTouchRef = useRef({ clientX: 0, clientY: 0, screenX: 0, screenY: 0 });
+
+    // Create a synthetic mouse event from a touch event
+    const createSyntheticMouseEvent = (type, touch, canvas) => {
+        // For touchend, use the last known position
+        const eventProps = {
+            bubbles: true,
+            cancelable: true,
+            view: window,
+            clientX: touch ? touch.clientX : lastTouchRef.current.clientX,
+            clientY: touch ? touch.clientY : lastTouchRef.current.clientY,
+            screenX: touch ? touch.screenX : lastTouchRef.current.screenX,
+            screenY: touch ? touch.screenY : lastTouchRef.current.screenY,
+            button: 0,
+            buttons: type === 'mouseup' ? 0 : 1,
+            detail: 1,
+            isTrusted: true
+        };
+
+        const event = new MouseEvent(type, eventProps);
+
+        // Add missing properties that some browsers expect
+        if (!event.offsetX) {
+            const rect = canvas.getBoundingClientRect();
+            event.offsetX = eventProps.clientX - rect.left;
+            event.offsetY = eventProps.clientY - rect.top;
+        }
+
+        return event;
+    };
+
+    // Touch event handlers
+    const handleTouchStart = (e) => {
+        e.preventDefault();
+        if (e.touches.length === 1) {
+            const touch = e.touches[0];
+            // Store the touch position
+            lastTouchRef.current = {
+                clientX: touch.clientX,
+                clientY: touch.clientY,
+                screenX: touch.screenX,
+                screenY: touch.screenY
+            };
+            const mouseEvent = createSyntheticMouseEvent('mousedown', touch, canvasRef.current);
+            handleMouseDown(mouseEvent);
+        }
+    };
+
+    const handleTouchMove = (e) => {
+        e.preventDefault();
+        if (e.touches.length === 1) {
+            const touch = e.touches[0];
+            // Update the last known position
+            lastTouchRef.current = {
+                clientX: touch.clientX,
+                clientY: touch.clientY,
+                screenX: touch.screenX,
+                screenY: touch.screenY
+            };
+            const mouseEvent = createSyntheticMouseEvent('mousemove', touch, canvasRef.current);
+            handleMouseMove(mouseEvent);
+        }
+    };
+
+    const handleTouchEnd = (e) => {
+        e.preventDefault();
+        // Create mouseup event using the last known position
+        const mouseEvent = createSyntheticMouseEvent('mouseup', null, canvasRef.current);
+        handleMouseUp(mouseEvent);
+
+        // Clear the last touch position
+        lastTouchRef.current = { clientX: 0, clientY: 0, screenX: 0, screenY: 0 };
+
+        // Also trigger the global mouse up handler in Hand.js
+        if (handRef.current._lastContext) {
+            handRef.current.handleFlickMouseUp(mouseEvent, {
+                isMyTurn,
+                strikerRef,
+                isStrikerColliding
+            });
+        }
     };
 
     // animation loop for striker and coin movement
@@ -678,150 +793,174 @@ function GameCanvas({
         return () => {
             socket.off("roomClosed", handleRoomClosed);
         };
-    }, [socket, onLeaveRoom]);return (
+    }, [socket, onLeaveRoom]);
+
+    // Get the responsive scale factor
+    const scale = useResponsiveScale();    return (
         <div style={{ 
             display: 'flex', 
             flexDirection: 'column', 
             alignItems: 'center', 
             justifyContent: 'center', 
-            minHeight: '100vh',
-            gap: '20px',
-            position: 'relative'
+            width: '100vw',
+            height: '100vh',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            backgroundColor: '#fff'
         }}>
             <div style={{
-                position: 'relative',
-                width: '900px',
-                marginBottom: '10px',
-                height: '40px'
-            }}>
-                {/* Help Button - Left aligned */}
-                <button 
-                    onClick={handleHelpToggle}
-                    style={{
-                        position: 'absolute',
-                        left: '0',
-                        width: '40px',
-                        height: '40px',
-                        backgroundColor: 'white',
-                        border: '2px solid black',
-                        cursor: 'pointer',
-                        fontWeight: 'bold',
-                        fontFamily: 'Helvetica, Arial, sans-serif',
-                        fontSize: '24px'
-                    }}
-                >{showHelp ? 'X' : '?'}</button>
-
-                {/* Info bar - center aligned */}
-                <div style={{
-                    position: 'absolute',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    display: 'flex',
-                    gap: '20px',
-                    alignItems: 'center',
-                    fontFamily: 'Helvetica, Arial, sans-serif',
-                    fontSize: '20px'
-                }}>
-                    <span style={{ fontWeight: 'bold' }}>{roomName.toUpperCase()}</span>
-                    <span>{creatorUsername ? creatorUsername.toUpperCase() : "?"} &nbsp; {manager?.getPlayerData("creator")?.score || 0}</span>
-                    <span>{joinerUsername ? joinerUsername.toUpperCase() : "?"} &nbsp; {manager?.getPlayerData("joiner")?.score || 0}</span>
-                </div>
-
-                {/* Exit Button - Right aligned */}
-                {onLeaveRoom && (
-                    <button onClick={onLeaveRoom} style={{
-                        position: 'absolute',
-                        right: '0',
-                        width: '100px',
-                        height: '40px',
-                        backgroundColor: 'white',
-                        border: '2px solid black',
-                        cursor: 'pointer',
-                        fontWeight: 'bold',
-                        fontFamily: 'Helvetica, Arial, sans-serif',
-                        fontSize: '20px'
-                    }}>
-                        EXIT
-                    </button>
-                )}
-            </div>
-
-            {/* Game Canvas */}            <canvas
-                ref={canvasRef}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={(e) => handRef.current.handleMouseLeave(e, {
-                    isAnimating: animationState.isAnimating,
-                    isMyTurn,
-                    strikerRef,
-                    isStrikerColliding,
-                })}
-                width={900}
-                height={900}
-                style={{
-                    backgroundColor: "#fff",
-                    cursor: animationState.isAnimating
-                        ? "not-allowed"
-                        : handState.isFlickerActive
-                          ? "crosshair"
-                          : isMyTurn && !strikerRef.current?.isStrikerMoving
-                            ? "grab"
-                            : "default",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                }}
-            />{/* Help text - appears below board but above slider */}            {showHelp && (                <div                style={{
-                    width: '855px', // Match frame size from Draw.FRAME_SIZE
-                    padding: '20px',
-                    backgroundColor: 'white',
-                    border: '2px solid black',
-                    fontFamily: 'Helvetica, Arial, sans-serif',
-                    fontSize: '20px',
-                    position: 'absolute',
-                    top: '600px', // 40px top bar + 75px board offset + 375px half board
-                    transform: 'translateY(-50%)',
-                    pointerEvents: 'none',
-                    zIndex: 2,
-                    textTransform: 'uppercase',
-                    textAlign: 'center'
-                }}>
-                    drag along the area below the board to move the striker <br />
-                    drag anywhere on the board to aim and release to flick <br />
-                    the futher you drag the harder you'll flick <br />
-                </div>
-            )}
-
-            {/* Striker Position Slider - Always visible, but only interactive when appropriate */}
-            <div style={{
-                width: '470px', // Match base width (legal striker area) instead of full board
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                height: '160px', // Increased container height for tall thumb
-                justifyContent: 'center',
-                position: 'relative',
-                zIndex: 1
+                transformOrigin: 'center center',
+                transform: `scale(${scale})`,
             }}>
-                <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={handState.sliderValue || 50}
-                    onChange={handleSliderChange}
-                    disabled={!isMyTurn || animationState.isAnimating || strikerRef.current?.isStrikerMoving}                    style={{
-                        width: '100%',
-                        height: '130px', // Much taller track to accommodate the tall thumb
-                        borderRadius: '6px',
-                        background: 'transparent', // Invisible background
-                        outline: 'none',
-                        cursor: isMyTurn && !animationState.isAnimating && !strikerRef.current?.isStrikerMoving ? 'pointer' : 'not-allowed',
-                        WebkitAppearance: 'none',
-                        appearance: 'none',
-                        opacity: 0, // Completely invisible regardless of state
-                        border: 'none' // No border to make it completely invisible
+                <div style={{
+                    position: 'relative',
+                    width: '900px',
+                    marginBottom: '10px',
+                    height: '40px'
+                }}>
+                    {/* Help toggle button */}
+                    <button
+                        onClick={handleHelpToggle}
+                        style={{
+                            position: 'absolute',
+                            left: '0',
+                            width: '40px',
+                            height: '40px',
+                            backgroundColor: 'white',
+                            border: '2px solid black',
+                            cursor: 'pointer',
+                            fontWeight: 'bold',
+                            fontFamily: 'Helvetica, Arial, sans-serif',
+                            fontSize: '24px'
+                        }}
+                    >{showHelp ? 'X' : '?'}</button>
+
+                    {/* Info bar */}
+                    <div style={{
+                        position: 'absolute',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        display: 'flex',
+                        gap: '20px',
+                        alignItems: 'center',
+                        fontFamily: 'Helvetica, Arial, sans-serif',
+                        fontSize: '20px'
+                    }}>
+                        <span style={{ fontWeight: 'bold' }}>{roomName.toUpperCase()}</span>
+                        <span>{creatorUsername ? creatorUsername.toUpperCase() : "?"} &nbsp; {manager?.getPlayerData("creator")?.score || 0}</span>
+                        <span>{joinerUsername ? joinerUsername.toUpperCase() : "?"} &nbsp; {manager?.getPlayerData("joiner")?.score || 0}</span>
+                    </div>
+
+                    {/* Exit button */}
+                    {onLeaveRoom && (
+                        <button onClick={onLeaveRoom} style={{
+                            position: 'absolute',
+                            right: '0',
+                            width: '100px',
+                            height: '40px',
+                            backgroundColor: 'white',
+                            border: '2px solid black',
+                            cursor: 'pointer',
+                            fontWeight: 'bold',
+                            fontFamily: 'Helvetica, Arial, sans-serif',
+                            fontSize: '20px'
+                        }}>
+                            EXIT
+                        </button>
+                    )}
+                </div>
+
+                <canvas
+                    ref={canvasRef}
+                    onMouseDown={handleMouseDown}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={(e) => handRef.current.handleMouseLeave(e, {
+                        isAnimating: animationState.isAnimating,
+                        isMyTurn,
+                        strikerRef,
+                        isStrikerColliding,
+                    })}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    width={900}
+                    height={900}
+                    style={{
+                        backgroundColor: "#fff",
+                        cursor: animationState.isAnimating
+                            ? "not-allowed"
+                            : handState.isFlickerActive
+                                ? "crosshair"
+                                : isMyTurn && !strikerRef.current?.isStrikerMoving
+                                    ? "grab"
+                                    : "default",
+                        border: "1px solid black",
+                        borderRadius: "0",
+                        touchAction: "none"
                     }}
                 />
+
+                {/* Help text box */}
+                {showHelp && (
+                    <div style={{
+                        width: '855px',
+                        padding: '20px',
+                        backgroundColor: 'white',
+                        border: '2px solid black',
+                        fontFamily: 'Helvetica, Arial, sans-serif',
+                        fontSize: '20px',
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        pointerEvents: 'none',
+                        zIndex: 2,
+                        textTransform: 'uppercase',
+                        textAlign: 'center'
+                    }}>
+                        DRAG ALONG THE AREA BELOW THE BOARD TO MOVE THE STRIKER <br />
+                        DRAG ANYWHERE ON THE BOARD TO AIM AND RELEASE TO FLICK <br />
+                        THE FURTHER YOU DRAG THE HARDER YOU'LL FLICK
+                    </div>
+                )}
+
+                {/* Striker Position Slider */}
+                <div style={{
+                    width: '470px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    height: '160px',
+                    justifyContent: 'center',
+                    position: 'relative',
+                    zIndex: 1
+                }}>
+                    <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={handState.sliderValue || 50}
+                        onChange={handleSliderChange}
+                        disabled={!isMyTurn || animationState.isAnimating || strikerRef.current?.isStrikerMoving}
+                        style={{
+                            width: '100%',
+                            height: '130px',
+                            borderRadius: '0',
+                            background: 'transparent',
+                            outline: 'none',
+                            cursor: isMyTurn && !animationState.isAnimating && !strikerRef.current?.isStrikerMoving ? 'pointer' : 'not-allowed',
+                            WebkitAppearance: 'none',
+                            appearance: 'none',
+                            opacity: 0,
+                            border: 'none'
+                        }}
+                    />
+                </div>
             </div>
         </div>
     );
