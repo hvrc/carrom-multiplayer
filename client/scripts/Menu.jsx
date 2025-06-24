@@ -177,12 +177,23 @@ export default function Menu() {
       return (
         <div style={{
             display: 'flex',
+            flexDirection: 'column',
             justifyContent: 'center',
             alignItems: 'center',
-            minHeight: '100vh'
-        }}>            <div style={{textAlign: 'center'}}>
-                <h1>CARROM</h1>
-                
+            minHeight: '100vh',
+            fontFamily: 'Helvetica, Arial, sans-serif'
+        }}>                <h1 style={{
+                    fontFamily: 'Helvetica, Arial, sans-serif',
+                    fontSize: '48px',
+                    marginBottom: '20px',
+                    color: '#000'
+                }}>CARROM</h1>
+            
+            <div style={{
+                backgroundColor: '#fff',
+                // padding: '10px',
+                textAlign: 'center'
+            }}>
                 <div>
                     <input
                         type="text"
@@ -194,7 +205,9 @@ export default function Menu() {
                             textAlign: 'center',
                             width: '350px',
                             height: '40px',
-                            fontSize: '16px'
+                            fontSize: '16px',
+                            fontFamily: 'Helvetica, Arial, sans-serif',
+                            border: '1px solid #ccc'
                         }}
                     />
                     <br /><br />
@@ -209,11 +222,13 @@ export default function Menu() {
                             textAlign: 'center',
                             width: '350px',
                             height: '40px',
-                            fontSize: '16px'
+                            fontSize: '16px',
+                            fontFamily: 'Helvetica, Arial, sans-serif',
+                            border: '1px solid #ccc'
                         }}
                     />
                     <br /><br />
-                      <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
                         <button 
                             onClick={handleJoinRoom}
                             style={{
@@ -222,7 +237,11 @@ export default function Menu() {
                                 width: '170px',
                                 height: '40px',
                                 fontSize: '16px',
-                                backgroundColor: 'white'
+                                backgroundColor: 'white',
+                                fontFamily: 'Helvetica, Arial, sans-serif',
+                                border: '2px solid black',
+                                cursor: 'pointer',
+                                fontWeight: 'bold'
                             }}
                         >
                             JOIN ROOM
@@ -235,15 +254,18 @@ export default function Menu() {
                                 width: '170px',
                                 height: '40px',
                                 fontSize: '16px',
-                                backgroundColor: 'white'
+                                backgroundColor: 'white',
+                                fontFamily: 'Helvetica, Arial, sans-serif',
+                                border: '2px solid black',
+                                cursor: 'pointer',
+                                fontWeight: 'bold'
                             }}
                         >
-                            CREATE ROOM                        </button>
-                        
+                            CREATE ROOM
+                        </button>
                     </div>
-                    
-                    <div style={{ height: '30px', marginTop: '20px' }}>
-                        {error && <p style={{color: 'red', margin: '0'}}>{error}</p>}
+                      <div style={{ height: '30px', marginTop: '20px' }}>
+                        {error && <p style={{color: 'red', margin: '0', fontFamily: 'Helvetica, Arial, sans-serif', textTransform: 'uppercase'}}>{error}</p>}
                     </div>
                 </div>
             </div>

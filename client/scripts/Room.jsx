@@ -399,14 +399,15 @@ export default function Room() {
             justifyContent: 'center', 
             minHeight: '100vh',
             padding: '20px'
-        }}>
-            <Board
+        }}>            <Board
                 isMyTurn={isMyTurn}
                 socket={socket}
                 roomName={roomName}
                 playerRole={playerRole}
                 manager={manager}
                 onLeaveRoom={handleLeaveRoom}
+                creatorUsername={roomData?.creator?.username || ""}
+                joinerUsername={roomData?.joiner?.username || ""}
             />
             {/* <GameInfoTable
                 key={tableRefresh}

@@ -13,7 +13,9 @@ function GameCanvas({
     roomName,
     manager,
     onLeaveRoom,
-}) {    // Add custom CSS for slider thumb styling
+    creatorUsername = "",
+    joinerUsername = "",
+}){    // Add custom CSS for slider thumb styling
     useEffect(() => {        const style = document.createElement('style');
         style.textContent = `            /* WebKit browsers (Chrome, Safari) - HIDDEN */
             input[type="range"]::-webkit-slider-thumb {
@@ -660,16 +662,58 @@ function GameCanvas({
             alignItems: 'center', 
             justifyContent: 'center', 
             minHeight: '100vh',
-            gap: '20px'
+            gap: '20px',
+            position: 'relative'
         }}>
-            {/* Leave Room button at the top */}
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                {onLeaveRoom && (                    <button onClick={onLeaveRoom} style={{ 
-                        padding: '8px 16px',
+            <div style={{
+                position: 'relative',
+                width: '900px',
+                marginBottom: '10px',
+                height: '40px'
+            }}>
+                {/* Help Button - Left aligned */}
+                <button style={{
+                    position: 'absolute',
+                    left: '0',
+                    width: '40px',
+                    height: '40px',
+                    backgroundColor: 'white',
+                    border: '2px solid black',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontFamily: 'Helvetica, Arial, sans-serif',
+                    fontSize: '24px'
+                }}>?</button>
+
+                {/* Info bar - center aligned */}
+                <div style={{
+                    position: 'absolute',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    display: 'flex',
+                    gap: '20px',
+                    alignItems: 'center',
+                    fontFamily: 'Helvetica, Arial, sans-serif',
+                    fontSize: '20px'
+                }}>
+                    <span style={{ fontWeight: 'bold' }}>{roomName.toUpperCase()}</span>
+                    <span>{creatorUsername ? creatorUsername.toUpperCase() : "?"} &nbsp; {manager?.getPlayerData("creator")?.score || 0}</span>
+                    <span>{joinerUsername ? joinerUsername.toUpperCase() : "?"} &nbsp; {manager?.getPlayerData("joiner")?.score || 0}</span>
+                </div>
+
+                {/* Exit Button - Right aligned */}
+                {onLeaveRoom && (
+                    <button onClick={onLeaveRoom} style={{
+                        position: 'absolute',
+                        right: '0',
+                        width: '100px',
+                        height: '40px',
                         backgroundColor: 'white',
                         border: '2px solid black',
                         cursor: 'pointer',
-                        fontWeight: 'bold'
+                        fontWeight: 'bold',
+                        fontFamily: 'Helvetica, Arial, sans-serif',
+                        fontSize: '20px'
                     }}>
                         EXIT
                     </button>
@@ -677,7 +721,8 @@ function GameCanvas({
             </div>
 
             {/* Game Canvas */}            <canvas
-                ref={canvasRef}                onMouseDown={handleMouseDown}
+                ref={canvasRef}
+                onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={(e) => handRef.current.handleMouseLeave(e, {
