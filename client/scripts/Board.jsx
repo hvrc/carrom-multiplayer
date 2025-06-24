@@ -664,9 +664,14 @@ function GameCanvas({
         }}>
             {/* Leave Room button at the top */}
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                {onLeaveRoom && (
-                    <button onClick={onLeaveRoom} style={{ padding: '8px 16px' }}>
-                        Leave Room
+                {onLeaveRoom && (                    <button onClick={onLeaveRoom} style={{ 
+                        padding: '8px 16px',
+                        backgroundColor: 'white',
+                        border: '2px solid black',
+                        cursor: 'pointer',
+                        fontWeight: 'bold'
+                    }}>
+                        EXIT
                     </button>
                 )}
             </div>
