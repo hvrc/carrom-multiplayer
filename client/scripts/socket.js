@@ -46,10 +46,9 @@ const socket = io("http://localhost:3000", {
 let heartbeatInterval;
 const startHeartbeat = () => {
     const clientId = sessionStorage.getItem("clientId");
-    if (clientId && !heartbeatInterval) {
-        heartbeatInterval = setInterval(() => {
+    if (clientId && !heartbeatInterval) {        heartbeatInterval = setInterval(() => {
             socket.emit("heartbeat", { clientId });
-        }, 5000);
+        }, 30000);
     }
 };
 
