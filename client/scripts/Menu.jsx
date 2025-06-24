@@ -2,7 +2,31 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import socket from "./socket.js";
 
+// Add custom hook for menu scaling
+function useMenuScale() {
+    const [scale, setScale] = useState(1);
+    const MENU_SCALE = 0.8; // Adjust this to decrease/increase overall menu size
+
+    useEffect(() => {
+        const updateScale = () => {
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile) {
+                setScale(0.9 * MENU_SCALE);
+            } else {
+                setScale(MENU_SCALE);
+            }
+        };
+
+        updateScale();
+        window.addEventListener('resize', updateScale);
+        return () => window.removeEventListener('resize', updateScale);
+    }, []);
+
+    return scale;
+}
+
 export default function Menu() {
+    const scale = useMenuScale();
     // socket.io handling room creation and joining
 
     // state variables
@@ -175,26 +199,28 @@ export default function Menu() {
     // and two separate buttons for joining or creating a room
     // setUsername, setRoomName come from the shared state declarations at the top
       return (
-        <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
-            minHeight: '100vh',
-            fontFamily: 'Helvetica, Arial, sans-serif'
-        }}>                <h1 style={{
-                    fontFamily: 'Helvetica, Arial, sans-serif',
-                    fontSize: '48px',
-                    marginBottom: '20px',
-                    color: '#000'
-                }}>CARROM</h1>
-            
+        <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center', 
+            height: '100vh',
+            backgroundColor: 'white'
+        }}>
             <div style={{
-                backgroundColor: '#fff',
-                // padding: '10px',
-                textAlign: 'center'
+                textAlign: 'center',
+                padding: '20px',
+                backgroundColor: 'white',
+                transform: `scale(${scale})`,
+                transformOrigin: 'center center'
             }}>
-                <div>
+                <div style={{ marginBottom: '20px' }}>
+                    <h1 style={{
+                        fontSize: '48px',
+                        marginBottom: '30px',
+                        fontFamily: 'Helvetica, Arial, sans-serif',
+                    }}>
+                        CARROM
+                    </h1>
                     <input
                         type="text"
                         placeholder="USERNAME"
@@ -264,7 +290,7 @@ export default function Menu() {
                             CREATE ROOM
                         </button>
                     </div>
-                      <div style={{ height: '30px', marginTop: '20px' }}>
+                    <div style={{ height: '30px', marginTop: '20px' }}>
                         {error && <p style={{color: 'red', margin: '0', fontFamily: 'Helvetica, Arial, sans-serif', textTransform: 'uppercase'}}>{error}</p>}
                     </div>
                 </div>
