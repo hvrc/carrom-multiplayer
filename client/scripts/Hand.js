@@ -1,4 +1,5 @@
 import Physics from "./Physics.js";
+import { Draw } from "./Draw.js";
 
 /**
  * Hand interaction manager for carrom game
@@ -23,15 +24,20 @@ export class Hand {
         };
         this.flickMaxLength = Hand.FLICK_MAX_LENGTH;
 
+        // Slider state management
+        this.sliderValue = 50; // 0-100 percentage
+        this.sliderMin = 0;
+        this.sliderMax = 0;
+        this.sliderSensitivity = 0.2;
+
         // Callbacks that will be set by the parent component
         this.onStateChange = null;
         this.onStrikerMove = null;
         this.onCollisionUpdate = null;
         this.onAnimationStart = null;
         this.onRedraw = null;
-    }
-
-    /**
+        this.onSliderChange = null;
+    }    /**
      * Set callback functions for communication with parent component
      */
     setCallbacks({
@@ -40,12 +46,14 @@ export class Hand {
         onCollisionUpdate,
         onAnimationStart,
         onRedraw,
+        onSliderChange,
     }) {
         this.onStateChange = onStateChange;
         this.onStrikerMove = onStrikerMove;
         this.onCollisionUpdate = onCollisionUpdate;
         this.onAnimationStart = onAnimationStart;
         this.onRedraw = onRedraw;
+        this.onSliderChange = onSliderChange;
     }
 
     /**
@@ -251,9 +259,7 @@ export class Hand {
         if (this.onAnimationStart) {
             this.onAnimationStart();
         }
-    }
-
-    /**
+    }    /**
      * Handle mouse down event (unified handler)
      */
     handleMouseDown(
@@ -268,39 +274,37 @@ export class Hand {
         },
     ) {
         // block all input when animation is active
-        if (isAnimating) return;
+        if (isAnimating || !isMyTurn || !strikerRef.current) return;
 
-        if (this.isFlickerActive) {
-            this.handleFlickMouseDown(e, {
-                isMyTurn,
-                strikerRef,
-                isStrikerColliding,
-                canvasRef,
-                playerRole,
-            });
-        } else if (this.canPlace) {
-            if (!isMyTurn || !strikerRef.current) return;
+        const rect = canvasRef.current.getBoundingClientRect();
+        let x = e.clientX - rect.left;
+        let y = e.clientY - rect.top;
 
-            const rect = canvasRef.current.getBoundingClientRect();
-            let x = e.clientX - rect.left;
-            let y = e.clientY - rect.top;
+        if (playerRole === "joiner") {
+            x = canvasRef.current.width - x;
+            y = canvasRef.current.height - y;
+        }
 
-            if (playerRole === "joiner") {
-                x = canvasRef.current.width - x;
-                y = canvasRef.current.height - y;
-            }
+        // Check if striker is in idle state (not moving)
+        if (!strikerRef.current.isStrikerMoving) {
+            // Start flick interaction - click anywhere on board
+            this._updateState({
+                isFlickerActive: true,
+                flick: {
+                    ...this.flick,
+                    active: true,
+                    startX: strikerRef.current.x,
+                    startY: strikerRef.current.y,
+                    endX: x,
+                    endY: y,
+                },            });
 
-            const dx = x - strikerRef.current.x;
-            const dy = y - strikerRef.current.y;
-
-            if (Math.hypot(dx, dy) < 30) {
-                this._updateState({ isPlacing: true });
-                strikerRef.current.isPlacing = true;
+            // Redraw to show flick line
+            if (this.onRedraw) {
+                this.onRedraw();
             }
         }
-    }
-
-    /**
+    }    /**
      * Handle mouse move event (unified handler)
      */
     handleMouseMove(
@@ -317,21 +321,9 @@ export class Hand {
         },
     ) {
         // block all input when animation is active
-        if (isAnimating) return;
+        if (isAnimating || !isMyTurn) return;
 
-        if (this.isFlickerActive) {
-            this.handleFlickMouseMove(e, {
-                isMyTurn,
-                strikerRef,
-                canvasRef,
-                playerRole,
-            });
-        } else if (
-            this.isPlacing &&
-            this.canPlace &&
-            isMyTurn &&
-            strikerRef.current
-        ) {
+        if (this.isFlickerActive && strikerRef.current) {
             const rect = canvasRef.current.getBoundingClientRect();
             let x = e.clientX - rect.left;
             let y = e.clientY - rect.top;
@@ -341,51 +333,28 @@ export class Hand {
                 y = canvasRef.current.height - y;
             }
 
-            // Only update x position, keep y position fixed
-            // Constrain x position to be between 226 and 667
-            const minX = 226;
-            const maxX = 673;
-            strikerRef.current.x = Math.max(minX, Math.min(maxX, x));
+            // Update flick end position
+            const dx = x - strikerRef.current.x;
+            const dy = y - strikerRef.current.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
 
-            // check for collision in real-time during drag
-            const isCurrentlyColliding = Physics.checkStrikerCoinCollision(
-                strikerRef.current,
-                coinsRef.current,
-            );
-
-            // Notify parent about collision state change
-            if (this.onCollisionUpdate) {
-                this.onCollisionUpdate(isCurrentlyColliding);
+            // Cap the flick line at maximum length
+            if (distance > this.flickMaxLength) {
+                const directionX = dx / distance;
+                const directionY = dy / distance;
+                x = strikerRef.current.x + directionX * this.flickMaxLength;
+                y = strikerRef.current.y + directionY * this.flickMaxLength;
             }
 
-            // emit collision/invalid state updates to other player
-            if (socket && roomName) {
-                socket.emit("strikerCollisionUpdate", {
-                    roomName,
-                    playerRole,
-                    isColliding: isCurrentlyColliding,
-                });
-            }
+            this._updateState({
+                flick: { ...this.flick, endX: x, endY: y },            });
 
-            // sync striker position to other player
-            if (socket && roomName && this.onStrikerMove) {
-                this.onStrikerMove({
-                    roomName,
-                    position: {
-                        x: strikerRef.current.x,
-                        y: strikerRef.current.y,
-                    },
-                });
-            }
-
-            // Request redraw with real-time collision state
+            // Redraw to show updated flick line
             if (this.onRedraw) {
-                this.onRedraw(isCurrentlyColliding);
+                this.onRedraw();
             }
         }
-    }
-
-    /**
+    }    /**
      * Handle mouse up event (unified handler)
      */
     handleMouseUp(
@@ -402,52 +371,130 @@ export class Hand {
         },
     ) {
         // block all input when animation is active
-        if (isAnimating) return;
+        if (isAnimating || !isMyTurn) return;
 
-        if (this.isFlickerActive) {
-            this.handleFlickMouseUp(e, {
-                isMyTurn,
-                strikerRef,
-                isStrikerColliding,
-            });
-        } else if (this.isPlacing) {
-            this._updateState({ isPlacing: false });
+        if (this.isFlickerActive && strikerRef.current) {
+            // Calculate flick power and direction
+            const dx = this.flick.endX - this.flick.startX;
+            const dy = this.flick.endY - this.flick.startY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
 
-            if (strikerRef.current) {
-                strikerRef.current.isPlacing = false;
+            if (distance > 5) { // Minimum distance to register flick
+                // Calculate power (normalize distance to 0-1 range)
+                const normalizedDistance = Math.min(distance / this.flickMaxLength, 1);
+                const power = normalizedDistance * Hand.FLICK_POWER;
+
+                // Apply velocity opposite to drag direction
+                const velocityX = -(dx / distance) * power * 100;
+                const velocityY = -(dy / distance) * power * 100;
+
+                strikerRef.current.velocity.x = velocityX;
+                strikerRef.current.velocity.y = velocityY;
+                strikerRef.current.isStrikerMoving = true;
+
+                // Start animation
+                if (this.onAnimationStart) {
+                    this.onAnimationStart();
+                }
             }
 
-            // emit final collision state when placement ends
-            if (socket && roomName) {
-                const finalCollisionState = Physics.checkStrikerCoinCollision(
-                    strikerRef.current,
-                    coinsRef.current,
-                );
+            // Reset flick state
+            this._updateState({
+                isFlickerActive: false,
+                flick: {
+                    ...this.flick,
+                    active: false,
+                },
+            });
 
-                socket.emit("strikerCollisionUpdate", {
-                    roomName,
-                    playerRole,
-                    isColliding: finalCollisionState,
+            // Redraw to clear flick line
+            if (this.onRedraw) {
+                this.onRedraw();
+            }
+        }
+    }    /**
+     * Calculate slider boundaries based on legal striker movement area
+     * Restricts slider to the base width (legal striker X axis) instead of full board
+     */
+    calculateSliderBoundaries(canvasRef, strikerRadius = 21) {
+        if (!canvasRef.current) return;
+
+        const ctx = canvasRef.current.getContext("2d");
+        const boardX = (ctx.canvas.width - Draw.BOARD_SIZE) / 2;
+        
+        // Calculate the legal striker area boundaries (base width, not full board)
+        const baseX = boardX + (Draw.BOARD_SIZE - Draw.BASE_WIDTH) / 2;
+        
+        this.sliderMin = baseX + strikerRadius;
+        this.sliderMax = baseX + Draw.BASE_WIDTH - strikerRadius;
+    }/**
+     * Convert slider percentage to X coordinate
+     */
+    sliderToX(percentage, playerRole = "creator") {
+        if (this.sliderMax === 0) return 0;
+        
+        // Invert percentage for joiner player due to canvas rotation
+        const adjustedPercentage = playerRole === "joiner" ? (100 - percentage) : percentage;
+        
+        return this.sliderMin + (this.sliderMax - this.sliderMin) * (adjustedPercentage / 100);
+    }
+
+    /**
+     * Convert X coordinate to slider percentage
+     */
+    xToSlider(x, playerRole = "creator") {
+        if (this.sliderMax === 0) return 50;
+        
+        const percentage = Math.max(0, Math.min(100, ((x - this.sliderMin) / (this.sliderMax - this.sliderMin)) * 100));
+        
+        // Invert percentage for joiner player due to canvas rotation
+        return playerRole === "joiner" ? (100 - percentage) : percentage;
+    }    /**
+     * Handle slider value change
+     */
+    handleSliderChange(newValue, strikerRef, socket, roomName, playerRole) {
+        this.sliderValue = Math.max(0, Math.min(100, newValue));
+        
+        if (strikerRef.current) {
+            const newX = this.sliderToX(this.sliderValue, playerRole);
+            strikerRef.current.updatePosition(newX, strikerRef.current.y);
+              // Emit slider position to other player
+            // Always send the actual slider value, let the receiver handle coordinate conversion
+            if (socket && roomName && this.onSliderChange) {
+                this.onSliderChange({
+                    sliderValue: this.sliderValue,
+                    strikerX: newX,
+                    playerRole
                 });
             }
         }
     }
 
     /**
+     * Handle delta-based slider movement for touch/mouse
+     */
+    handleSliderDelta(deltaX, strikerRef, socket, roomName, playerRole) {
+        const deltaValue = deltaX * this.sliderSensitivity;
+        const newValue = this.sliderValue + deltaValue;
+        this.handleSliderChange(newValue, strikerRef, socket, roomName, playerRole);
+    }    /**
      * Get current state for external access
-     */    getState() {
+     */
+    getState() {
         return {
             isPlacing: this.isPlacing,
             canPlace: this.canPlace,
             isFlickerActive: this.isFlickerActive,
             flick: { ...this.flick },
             flickMaxLength: this.flickMaxLength,
+            sliderValue: this.sliderValue,
         };
     }
 
     /**
      * Reset state (useful for game resets)
-     */    reset() {
+     */
+    reset() {
         this.flickMaxLength = Hand.FLICK_MAX_LENGTH;
         this._updateState({
             isPlacing: false,

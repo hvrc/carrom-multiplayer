@@ -108,13 +108,16 @@ class Animation {
             if (actionData.continuedTurns !== undefined) {
                 continuedTurnsRef.current = actionData.continuedTurns;
             }
-        }
-
-        // apply the position reset
+        }        // apply the position reset
         strikerRef.current.x = newX;
         strikerRef.current.y = newY;
         strikerRef.current.velocity = { x: 0, y: 0 };
         strikerRef.current.isStrikerMoving = false;
+
+        // reset slider to center position if callback exists
+        if (this.callbacks.onStrikerReset) {
+            this.callbacks.onStrikerReset(newX);
+        }
 
         // clear pocketed coins for new turn
         pocketedThisTurnRef.current = [];

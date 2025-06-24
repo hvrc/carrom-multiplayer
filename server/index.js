@@ -765,7 +765,7 @@ io.on("connection", (socket) => {
                 roomName,
                 playerRole,
                 newScore: room.scores[playerRole],
-                newDebt: room.debts[playerRole],
+                newDebt: room.debs[playerRole],
                 coinColor,
                 coinId: Date.now() + Math.random(),
             });
@@ -866,6 +866,22 @@ io.on("connection", (socket) => {
         });
 
         io.to(roomName).emit("roomUpdate", room);
+    });
+
+    // handle striker slider position updates
+    socket.on("strikerSliderUpdate", ({ roomName, playerRole, sliderValue, strikerX }) => {
+        if (!rooms.has(roomName)) {
+            socket.emit("error", "Room does not exist");
+            return;
+        }
+
+        // broadcast slider position to other players in the room
+        socket.to(roomName).emit("strikerSliderUpdate", {
+            roomName,
+            playerRole,
+            sliderValue,
+            strikerX,
+        });
     });
 });
 

@@ -455,3 +455,34 @@ export const handleGameReset = (
     const ctx = canvasRef.current.getContext("2d");
     Draw.drawBoard(ctx, createGameState(), playerRole);
 };
+
+/**
+ * Handle striker slider position updates from other players
+ */
+export const handleStrikerSliderUpdate = (
+    data,
+    { roomName, strikerRef, handRef, setHandState, canvasRef, playerRole, createGameState },
+) => {
+    if (data.roomName === roomName && data.playerRole !== playerRole && strikerRef.current && handRef.current) {
+        // Convert the remote player's slider value to the striker X position in our coordinate system
+        // The sliderToX method handles the appropriate coordinate transformations
+        const newX = handRef.current.sliderToX(data.sliderValue, data.playerRole);
+        
+        // Update the striker position
+        strikerRef.current.updatePosition(newX, strikerRef.current.y);
+        
+        // Convert the remote slider value to what it should be in our local slider coordinate system
+        // If remote is creator and we are joiner: invert the remote value for our display
+        // If remote is joiner and we are creator: invert the remote value for our display
+        // This is because the slider orientations are mirrored between players
+        const localSliderValue = data.playerRole !== playerRole ? (100 - data.sliderValue) : data.sliderValue;
+        handRef.current.sliderValue = localSliderValue;
+        setHandState(handRef.current.getState());
+
+        // Redraw to show updated striker position
+        const ctx = canvasRef.current?.getContext("2d");
+        if (ctx) {
+            Draw.drawBoard(ctx, createGameState(), playerRole);
+        }
+    }
+};

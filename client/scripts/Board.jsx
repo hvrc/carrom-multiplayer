@@ -13,7 +13,120 @@ function GameCanvas({
     roomName,
     manager,
     onLeaveRoom,
-}) {
+}) {    // Add custom CSS for slider thumb styling
+    useEffect(() => {        const style = document.createElement('style');
+        style.textContent = `            /* WebKit browsers (Chrome, Safari) - HIDDEN */
+            input[type="range"]::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 30px;
+                height: 120px; /* Much taller thumb covering entire vertical bottom space */
+                border-radius: 0; /* No rounding for minimal rectangle */
+                background: transparent; /* Invisible - no color */
+                cursor: pointer;
+                border: none; /* No border for minimal look */
+                box-shadow: none; /* No shadow for minimal look */
+                transition: none; /* No transitions for minimal look */
+                margin-top: -54px; /* Center the thumb on the track: (120px - 12px) / 2 = 54px */
+                opacity: 0; /* Completely invisible */
+            }
+            
+            input[type="range"]::-webkit-slider-thumb:hover {
+                background: transparent; /* Keep invisible even on hover */
+                box-shadow: none; /* No shadow on hover */
+                transform: none; /* No scaling on hover */
+                opacity: 0; /* Keep invisible on hover */
+            }
+            
+            /* Firefox - HIDDEN */
+            input[type="range"]::-moz-range-thumb {
+                width: 30px;
+                height: 120px; /* Much taller thumb covering entire vertical bottom space */
+                border-radius: 0; /* No rounding for minimal rectangle */
+                background: transparent; /* Invisible - no color */
+                cursor: pointer;
+                border: none; /* No border for minimal look */
+                box-shadow: none; /* No shadow for minimal look */
+                margin-top: -54px; /* Center the thumb on the track: (120px - 12px) / 2 = 54px */
+                opacity: 0; /* Completely invisible */
+            }
+            
+            input[type="range"]::-moz-range-thumb:hover {
+                background: transparent; /* Keep invisible even on hover */
+                box-shadow: none; /* No shadow on hover */
+                opacity: 0; /* Keep invisible on hover */
+            }
+            
+            /* Remove default track styling for Firefox - HIDDEN */
+            input[type="range"]::-moz-range-track {
+                background: transparent; /* No fill - transparent background */
+                height: 12px;
+                border-radius: 0; /* No rounded edges */
+                border: none; /* No border - completely invisible */
+                outline: none; /* Remove any default outline */
+                box-shadow: none; /* Remove any default box shadow */
+                opacity: 0; /* Completely invisible */
+            }
+            
+            /* Track styling for WebKit - HIDDEN */
+            input[type="range"]::-webkit-slider-runnable-track {
+                width: 100%;
+                height: 12px;
+                background: transparent; /* No fill - transparent background */
+                border-radius: 0; /* No rounded edges */
+                border: none; /* No border - completely invisible */
+                outline: none; /* Remove any default outline */
+                box-shadow: none; /* Remove any default box shadow */
+                opacity: 0; /* Completely invisible */
+            }
+            
+            /* Additional overrides to ensure invisibility */
+            input[type="range"] {
+                background: transparent !important;
+                outline: none;
+                opacity: 0; /* Make the entire slider invisible */
+            }
+            
+            /* Override any remaining browser default track styling - HIDDEN */
+            input[type="range"]::-webkit-slider-track {
+                background: transparent !important;
+                border: none; /* No border */
+                border-radius: 0;
+                height: 12px;
+                opacity: 0; /* Completely invisible */
+            }
+            
+            /* Disabled slider styling - HIDDEN */
+            input[type="range"]:disabled::-webkit-slider-thumb {
+                background: transparent; /* Keep invisible when disabled */
+                cursor: not-allowed;
+                opacity: 0; /* Keep invisible when disabled */
+            }
+            
+            input[type="range"]:disabled::-moz-range-thumb {
+                background: transparent; /* Keep invisible when disabled */
+                cursor: not-allowed;
+                opacity: 0; /* Keep invisible when disabled */
+            }
+            
+            input[type="range"]:disabled::-webkit-slider-track {
+                border: none; /* No border when disabled */
+                opacity: 0; /* Keep invisible when disabled */
+            }
+            
+            input[type="range"]:disabled::-moz-range-track {
+                border: none; /* No border when disabled */
+                opacity: 0; /* Keep invisible when disabled */
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // Cleanup function to remove style when component unmounts
+        return () => {
+            document.head.removeChild(style);
+        };
+    }, []);
+
     const canvasRef = useRef(null);
     const strikerRef = useRef(null);
 
@@ -67,9 +180,7 @@ function GameCanvas({
             white: allCoins.filter((coin) => coin.color === "white").length,
             black: allCoins.filter((coin) => coin.color === "black").length,
             red: allCoins.filter((coin) => coin.color === "red").length,
-        };
-
-        // Set up Hand callbacks
+        };        // Set up Hand callbacks
         handRef.current.setCallbacks({
             onStateChange: (newState) => setHandState(newState),
             onStrikerMove: (data) => {
@@ -103,9 +214,19 @@ function GameCanvas({
                     );
                 }
             },
+            onSliderChange: (data) => {
+                if (socket && roomName) {
+                    socket.emit("strikerSliderUpdate", {
+                        roomName,
+                        playerRole,
+                        ...data,
+                    });
+                }
+            },
         });
 
-        // Set up Animation callbacks
+        // Initialize slider boundaries
+        handRef.current.calculateSliderBoundaries(canvasRef);        // Set up Animation callbacks
         animationRef.current.setCallbacks({
             setIsAnimating: (isAnimating) =>
                 setAnimationState((prev) => ({ ...prev, isAnimating })),
@@ -113,7 +234,12 @@ function GameCanvas({
                 handRef.current._updateState(newState);
                 setHandState(handRef.current.getState());
             },
-            createGameState: () => createGameState(),
+            createGameState: () => createGameState(),            onStrikerReset: (newX) => {
+                // Reset slider to center when striker resets
+                const newSliderValue = handRef.current.xToSlider(newX, playerRole);
+                handRef.current.sliderValue = newSliderValue;
+                setHandState(handRef.current.getState());
+            },
         });
     }, []);
 
@@ -125,15 +251,11 @@ function GameCanvas({
         isFlickerActive: handState.isFlickerActive,
         flick: handState.flick,
         flickMaxLength: handState.flickMaxLength,
-    });
-
-    // show place button immediately after clicking flick
-    const handleFlick = () => {
-        handRef.current.handleFlick(isStrikerColliding);
-    };
-
-    const handlePlace = () => {
-        handRef.current.handlePlace(strikerRef, socket, roomName, playerRole);
+    });    // Handle slider change
+    const handleSliderChange = (e) => {
+        const newValue = parseFloat(e.target.value);
+        handRef.current.handleSliderChange(newValue, strikerRef, socket, roomName, playerRole);
+        setHandState(handRef.current.getState());
     };
 
     // Mouse event handlers delegated to Hand class
@@ -230,9 +352,7 @@ function GameCanvas({
                 playerRole,
                 createGameState,
             });
-        };
-
-        const handleStrikerAnimation = (data) => {
+        };        const handleStrikerAnimation = (data) => {
             Events.handleStrikerAnimation(data, {
                 roomName,
                 strikerRef,
@@ -243,14 +363,28 @@ function GameCanvas({
             });
         };
 
+        const handleStrikerSliderUpdate = (data) => {
+            Events.handleStrikerSliderUpdate(data, {
+                roomName,
+                strikerRef,
+                handRef,
+                setHandState,
+                canvasRef,
+                playerRole,
+                createGameState,
+            });
+        };
+
         socket.on("strikerMove", handleStrikerMove);
         socket.on("strikerCollisionUpdate", handleStrikerCollisionUpdate);
         socket.on("strikerAnimation", handleStrikerAnimation);
+        socket.on("strikerSliderUpdate", handleStrikerSliderUpdate);
 
         return () => {
             socket.off("strikerMove", handleStrikerMove);
             socket.off("strikerCollisionUpdate", handleStrikerCollisionUpdate);
             socket.off("strikerAnimation", handleStrikerAnimation);
+            socket.off("strikerSliderUpdate", handleStrikerSliderUpdate);
         };
     }, [socket, roomName]);
     
@@ -519,20 +653,9 @@ function GameCanvas({
             justifyContent: 'center', 
             minHeight: '100vh',
             gap: '20px'
-        }}>            {/* Buttons at the top */}
+        }}>
+            {/* Leave Room button at the top */}
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                {isMyTurn &&
-                    !animationState.isAnimating &&
-                    !strikerRef.current?.isStrikerMoving &&
-                    (handState.isFlickerActive ? (
-                        <button onClick={handlePlace} style={{ padding: '8px 16px' }}>
-                            Place
-                        </button>
-                    ) : (
-                        <button onClick={handleFlick} style={{ padding: '8px 16px' }}>
-                            Flick
-                        </button>
-                    ))}
                 {onLeaveRoom && (
                     <button onClick={onLeaveRoom} style={{ padding: '8px 16px' }}>
                         Leave Room
@@ -552,15 +675,43 @@ function GameCanvas({
                     backgroundColor: "#fff",
                     cursor: animationState.isAnimating
                         ? "not-allowed"
-                        : handState.isPlacing
-                          ? "grabbing"
-                          : isMyTurn && handState.canPlace
+                        : handState.isFlickerActive
+                          ? "crosshair"
+                          : isMyTurn && !strikerRef.current?.isStrikerMoving
                             ? "grab"
                             : "default",
                     border: "1px solid #ccc",
                     borderRadius: "4px",
                 }}
-            />
+            />            {/* Striker Position Slider - Always visible, but only interactive when appropriate */}
+            <div style={{
+                width: '470px', // Match base width (legal striker area) instead of full board
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                height: '160px', // Increased container height for tall thumb
+                justifyContent: 'center'
+            }}>
+                <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={handState.sliderValue || 50}
+                    onChange={handleSliderChange}
+                    disabled={!isMyTurn || animationState.isAnimating || strikerRef.current?.isStrikerMoving}                    style={{
+                        width: '100%',
+                        height: '130px', // Much taller track to accommodate the tall thumb
+                        borderRadius: '6px',
+                        background: 'transparent', // Invisible background
+                        outline: 'none',
+                        cursor: isMyTurn && !animationState.isAnimating && !strikerRef.current?.isStrikerMoving ? 'pointer' : 'not-allowed',
+                        WebkitAppearance: 'none',
+                        appearance: 'none',
+                        opacity: 0, // Completely invisible regardless of state
+                        border: 'none' // No border to make it completely invisible
+                    }}
+                />
+            </div>
         </div>
     );
 }
