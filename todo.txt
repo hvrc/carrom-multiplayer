@@ -28,8 +28,8 @@ slingshot double click bug
 animation for pocketing coins, striker
 no overlapping
 starting grid
-
 longer heartbeats in server?
+
 player should be able to leave room, and same/new player should be able to join
 if both players leave, room should be deleted
 player should be able to refresh while in room
