@@ -16,9 +16,8 @@ export default class Striker {
 
         // pocketing animation state
         this.beingPocketed = false;
-        this.pocketTarget = null;
-        this.pocketAnimationProgress = 0;
-        this.pocketAnimationSpeed = 0.08;
+        this.pocketTarget = null;        this.pocketAnimationProgress = 0;
+        this.pocketAnimationSpeed = 0.04;  // Slowed down animation speed
         this.originalRadius = 21;
         this.startPocketPosition = { x: 0, y: 0 };
     }

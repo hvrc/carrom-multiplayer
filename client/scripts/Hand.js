@@ -77,7 +77,8 @@ export class Hand {
      * Update internal state and notify parent
      */
     _updateState(updates) {
-        Object.assign(this, updates);        if (this.onStateChange) {
+        Object.assign(this, updates);
+        if (this.onStateChange) {
             this.onStateChange({
                 isPlacing: this.isPlacing,
                 canPlace: this.canPlace,

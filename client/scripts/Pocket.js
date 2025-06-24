@@ -69,12 +69,7 @@ export class Pocket {
             (obj.pocketTarget.x - obj.startPocketPosition.x) * easeProgress;
         obj.y =
             obj.startPocketPosition.y +
-            (obj.pocketTarget.y - obj.startPocketPosition.y) * easeProgress;
-
-        // shrink radius as it gets closer to pocket
-        obj.radius = obj.originalRadius * (1 - easeProgress * 0.5);
-
-        // animation complete
+            (obj.pocketTarget.y - obj.startPocketPosition.y) * easeProgress;        // animation complete
         return obj.pocketAnimationProgress >= 1;
     }
 
