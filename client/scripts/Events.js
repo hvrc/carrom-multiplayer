@@ -104,6 +104,7 @@ export const handleTurnSwitched = (
         playerRole,
         continuedTurnsRef,
         pocketedThisTurnRef,
+        socket,
     },
 ) => {
     if (data.roomName !== roomName) return;
@@ -133,6 +134,8 @@ export const handleTurnSwitched = (
             playerRole,
             continuedTurnsRef,
             pocketedThisTurnRef,
+            socket,
+            roomName,
         );
     }
 };
@@ -151,6 +154,7 @@ export const handleTurnContinued = (
         playerRole,
         continuedTurnsRef,
         pocketedThisTurnRef,
+        socket,
     },
 ) => {
     if (data.roomName !== roomName) return;
@@ -182,6 +186,8 @@ export const handleTurnContinued = (
             playerRole,
             continuedTurnsRef,
             pocketedThisTurnRef,
+            socket,
+            roomName,
         );
     }
 };

@@ -549,6 +549,7 @@ function GameCanvas({
                 playerRole,
                 continuedTurnsRef,
                 pocketedThisTurnRef,
+                socket,
             });
         };
 
@@ -572,6 +573,7 @@ function GameCanvas({
                 playerRole,
                 continuedTurnsRef,
                 pocketedThisTurnRef,
+                socket,
             });
         };
 
