@@ -4,18 +4,23 @@ import Draw from "./Draw";
 
 class Animation {
     constructor() {
+        // Animation state
         this.isAnimating = false;
-        this.animationId = null;
+        this.isFlickerActive = false;
+
+        // Animation refs
         this.beingPocketedCoinsRef = [];
         this.beingPocketedStrikerRef = null;
-        this.callbacks = {};
-        
-        // Throttling properties for network emissions
-        this.lastEmitTime = 0;
-        this.EMIT_INTERVAL = 33; // Changed from 50ms to 33ms (30 FPS instead of 20 FPS)
-        
+        this.pendingTurnActionRef = null;
+
         // Constants
         this.MOVEMENT_THRESHOLD = 0.21;
+
+        // Animation frame ID for cleanup
+        this.animationId = null;
+
+        // Callbacks that will be set from Board component
+        this.callbacks = {};
     }
 
     // Set callbacks from the parent component
@@ -60,49 +65,58 @@ class Animation {
     }
 
     // Reset striker position when all movement has stopped
-    executeStrikerReset(actionData, strikerRef, canvasRef, playerRole, continuedTurnsRef, pocketedThisTurnRef, socket, roomName) {
+    executeStrikerReset(actionData, strikerRef, canvasRef, playerRole, continuedTurnsRef, pocketedThisTurnRef, ) {
         if (!strikerRef.current) return;
 
         const ctx = canvasRef.current?.getContext("2d");
         if (!ctx) return;
 
-        let targetPlayerRole;
+        const boardX = (ctx.canvas.width - Draw.BOARD_SIZE) / 2;
+        const boardY = (ctx.canvas.height - Draw.BOARD_SIZE) / 2;
+        const bottomBaselineY =
+            boardY +
+            Draw.BOARD_SIZE -
+            Draw.BASE_DISTANCE -
+            Draw.BASE_HEIGHT / 2;
+        const topBaselineY = boardY + Draw.BASE_DISTANCE + Draw.BASE_HEIGHT / 2;
+
+        let newX = boardX + Draw.BOARD_SIZE / 2;
+        let newY;
 
         if (actionData.type === "turnSwitch") {
-            // striker position should be for the player whose turn it is now
-            targetPlayerRole = actionData.newTurn;
+            // reset striker position based on new turn
+            newY =
+                actionData.newTurn === playerRole
+                    ? playerRole === "joiner"
+                        ? topBaselineY
+                        : bottomBaselineY
+                    : playerRole === "joiner"
+                      ? bottomBaselineY
+                      : topBaselineY;
         } else if (actionData.type === "turnContinue") {
-            // striker position should be for the player who continues
-            targetPlayerRole = actionData.continueWith;
+            // reset striker position based on who continues
+            newY =
+                actionData.continueWith === playerRole
+                    ? playerRole === "joiner"
+                        ? topBaselineY
+                        : bottomBaselineY
+                    : playerRole === "joiner"
+                      ? bottomBaselineY
+                      : topBaselineY;
 
             // update continued turns count
             if (actionData.continuedTurns !== undefined) {
                 continuedTurnsRef.current = actionData.continuedTurns;
             }
-        }
-
-        // Use the proper Draw method to get correct striker position
-        const initialPosition = Draw.getStrikerInitialPosition(ctx, targetPlayerRole);
-
-        // apply the position reset
-        strikerRef.current.x = initialPosition.x;
-        strikerRef.current.y = initialPosition.y;
+        }        // apply the position reset
+        strikerRef.current.x = newX;
+        strikerRef.current.y = newY;
         strikerRef.current.velocity = { x: 0, y: 0 };
         strikerRef.current.isStrikerMoving = false;
 
-        // Emit striker reset to other clients immediately
-        if (socket && roomName) {
-            socket.emit("strikerMove", {
-                roomName,
-                isReset: true,
-                x: initialPosition.x,
-                y: initialPosition.y,
-            });
-        }
-
         // reset slider to center position if callback exists
         if (this.callbacks.onStrikerReset) {
-            this.callbacks.onStrikerReset(initialPosition.x);
+            this.callbacks.onStrikerReset(newX);
         }
 
         // clear pocketed coins for new turn
@@ -177,29 +191,23 @@ class Animation {
         }
 
         if (socket && roomName) {
-            // Throttle network emissions to reduce load on non-active player
-            const currentTime = Date.now();
-            if (currentTime - this.lastEmitTime > this.EMIT_INTERVAL) {
-                socket.emit("strikerMove", {
-                    roomName,
-                    position: {
-                        x: strikerRef.current.x,
-                        y: strikerRef.current.y,
-                    },
-                });
+            socket.emit("strikerMove", {
+                roomName,
+                position: {
+                    x: strikerRef.current.x,
+                    y: strikerRef.current.y,
+                },
+            });
 
-                socket.emit("coinsMove", {
-                    roomName,
-                    coins: coinsRef.current.map((coin) => ({
-                        id: coin.id,
-                        x: coin.x,
-                        y: coin.y,
-                        velocity: { ...coin.velocity },
-                    })),
-                });
-
-                this.lastEmitTime = currentTime;
-            }
+            socket.emit("coinsMove", {
+                roomName,
+                coins: coinsRef.current.map((coin) => ({
+                    id: coin.id,
+                    x: coin.x,
+                    y: coin.y,
+                    velocity: { ...coin.velocity },
+                })),
+            });
         }
 
         const ctx = canvasRef.current.getContext("2d");
@@ -550,8 +558,6 @@ class Animation {
                     playerRole,
                     continuedTurnsRef,
                     pocketedThisTurnRef,
-                    socket,
-                    roomName,
                 );
                 return; // exit early to avoid game logic interference
             }
