@@ -30,7 +30,7 @@ no overlapping
 starting grid
 longer heartbeats in server?
 
-holy lag
+dont send each position, send input
 blue button text on mobile
 no slider on mobile
 
