@@ -69,25 +69,6 @@ class Manager {
         }
         return null;
     }
-
-    resetGame() {
-        // Reset all player data to initial state
-        this.whoseTurn = "creator";
-        this.playerData[0] = {
-            role: "creator",
-            color: "white",
-            score: 0,
-            debt: 0,
-            isTurn: true,
-        };
-        this.playerData[1] = {
-            role: "joiner",
-            color: "black",
-            score: 0,
-            debt: 0,
-            isTurn: false,
-        };
-    }
 }
 
 export default Manager;

@@ -477,91 +477,6 @@ function GameCanvas({
         };
     }, [animationState.isAnimating, socket, roomName, isMyTurn]);
     
-    // Interpolation animation loop for non-active players (smooth remote movement)
-    useEffect(() => {
-        let interpolationAnimationId;
-        
-        const interpolatePositions = () => {
-            let needsUpdate = false;
-            const INTERPOLATION_SPEED = 0.15; // Adjust for smoothness (0.1 = slow, 0.3 = fast)
-            
-            // Interpolate striker position
-            if (!isMyTurn && strikerRef.current && 
-                strikerRef.current.targetX !== undefined && 
-                strikerRef.current.targetY !== undefined) {
-                
-                const progress = Math.min(strikerRef.current.interpolationProgress + INTERPOLATION_SPEED, 1);
-                strikerRef.current.interpolationProgress = progress;
-                
-                // Linear interpolation (lerp)
-                const newX = strikerRef.current.startX + 
-                    (strikerRef.current.targetX - strikerRef.current.startX) * progress;
-                const newY = strikerRef.current.startY + 
-                    (strikerRef.current.targetY - strikerRef.current.startY) * progress;
-                
-                strikerRef.current.x = newX;
-                strikerRef.current.y = newY;
-                
-                needsUpdate = true;
-                
-                // Clean up when interpolation is complete
-                if (progress >= 1) {
-                    delete strikerRef.current.targetX;
-                    delete strikerRef.current.targetY;
-                    delete strikerRef.current.interpolationProgress;
-                }
-            }
-            
-            // Interpolate coin positions
-            if (!isMyTurn) {
-                coinsRef.current.forEach(coin => {
-                    if (coin.targetX !== undefined && coin.targetY !== undefined) {
-                        const progress = Math.min(coin.interpolationProgress + INTERPOLATION_SPEED, 1);
-                        coin.interpolationProgress = progress;
-                        
-                        // Linear interpolation (lerp)
-                        const newX = coin.startX + (coin.targetX - coin.startX) * progress;
-                        const newY = coin.startY + (coin.targetY - coin.startY) * progress;
-                        
-                        coin.x = newX;
-                        coin.y = newY;
-                        
-                        needsUpdate = true;
-                        
-                        // Clean up when interpolation is complete
-                        if (progress >= 1) {
-                            delete coin.targetX;
-                            delete coin.targetY;
-                            delete coin.interpolationProgress;
-                        }
-                    }
-                });
-            }
-            
-            // Redraw if positions were updated
-            if (needsUpdate) {
-                const ctx = canvasRef.current?.getContext("2d");
-                if (ctx) {
-                    Draw.drawBoard(ctx, createGameState(), playerRole);
-                }
-            }
-            
-            // Continue animation loop
-            interpolationAnimationId = requestAnimationFrame(interpolatePositions);
-        };
-        
-        // Start interpolation loop only for non-active players
-        if (!isMyTurn) {
-            interpolationAnimationId = requestAnimationFrame(interpolatePositions);
-        }
-        
-        return () => {
-            if (interpolationAnimationId) {
-                cancelAnimationFrame(interpolationAnimationId);
-            }
-        };
-    }, [isMyTurn, playerRole]);
-    
     // listen for striker moves from other player
     useEffect(() => {
         if (!socket || !roomName) return;
@@ -900,7 +815,6 @@ function GameCanvas({
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                justifyContent: 'center',
                 transformOrigin: 'center center',
                 transform: `scale(${scale})`,
             }}>

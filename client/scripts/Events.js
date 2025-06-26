@@ -15,32 +15,14 @@ export const handleStrikerMove = (
     { roomName, strikerRef, canvasRef, playerRole, createGameState },
 ) => {
     if (data.roomName === roomName && strikerRef.current) {
-        // if this is a reset event from server, update striker's state immediately
+        // if this is a reset event from server, update striker's state
         if (data.isReset) {
             strikerRef.current.x = data.x;
             strikerRef.current.y = data.y;
             strikerRef.current.velocity = { x: 0, y: 0 };
             strikerRef.current.isStrikerMoving = false;
-            // Clear any interpolation targets
-            delete strikerRef.current.targetX;
-            delete strikerRef.current.targetY;
-            delete strikerRef.current.interpolationProgress;
         } else if (data.position) {
-            // Use interpolation for smooth movement
-            strikerRef.current.targetX = data.position.x;
-            strikerRef.current.targetY = data.position.y;
-            
-            // Initialize interpolation properties if they don't exist
-            if (strikerRef.current.interpolationProgress === undefined) {
-                strikerRef.current.interpolationProgress = 0;
-                strikerRef.current.startX = strikerRef.current.x;
-                strikerRef.current.startY = strikerRef.current.y;
-            }
-            
-            // Reset interpolation for new target
-            strikerRef.current.interpolationProgress = 0;
-            strikerRef.current.startX = strikerRef.current.x;
-            strikerRef.current.startY = strikerRef.current.y;
+            strikerRef.current.updatePosition(data.position.x, data.position.y);
         }
 
         const ctx = canvasRef.current.getContext("2d");
@@ -227,26 +209,12 @@ export const handleCoinsMove = (
 ) => {
     if (data.roomName !== roomName || isMyTurn) return;
 
-    // Update coin positions with interpolation for smoother movement
     coinsRef.current.forEach((coin) => {
         const remote = data.coins.find((c) => c.id === coin.id);
         if (remote) {
-            // Store target position and start interpolation
-            coin.targetX = remote.x;
-            coin.targetY = remote.y;
+            coin.x = remote.x;
+            coin.y = remote.y;
             coin.velocity = { ...remote.velocity };
-            
-            // Initialize interpolation properties if they don't exist
-            if (coin.interpolationProgress === undefined) {
-                coin.interpolationProgress = 0;
-                coin.startX = coin.x;
-                coin.startY = coin.y;
-            }
-            
-            // Reset interpolation for new target
-            coin.interpolationProgress = 0;
-            coin.startX = coin.x;
-            coin.startY = coin.y;
         }
     });
 
