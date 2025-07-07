@@ -45,9 +45,7 @@ class Manager {
 
     updateDebt(role, newDebt) {
         const player = this.playerData.find((p) => p.role === role);
-        if (player) {
-            player.debt = newDebt;
-        }
+        if (player) { player.debt = newDebt; }
         return player;
     }
 
@@ -68,6 +66,15 @@ class Manager {
             };
         }
         return null;
+    }
+
+    resetGame() {
+        this.whoseTurn = "creator";
+        this.playerData.forEach((player) => {
+            player.score = 0;
+            player.debt = 0;
+            player.isTurn = player.role === "creator";
+        });
     }
 }
 

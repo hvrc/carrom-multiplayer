@@ -521,9 +521,11 @@ export class Hand {
         },
     ) {
         // block all input when animation is active
-        if (isAnimating || !isMyTurn) return;        if (this.isFlickerActive && strikerRef.current) {
+        if (isAnimating || !isMyTurn) return;
+        if (this.isFlickerActive && strikerRef.current) {
             // Prevent flicking if striker is colliding with coins
-            if (isStrikerColliding) {                // Reset flick state without executing the flick
+            if (isStrikerColliding) {
+                // Reset flick state without executing the flick
                 this._updateState({
                     isFlickerActive: false,
                     flick: {
@@ -543,38 +545,39 @@ export class Hand {
                     this.onRedraw();
                 }
                 return;
-            }            // Calculate flick power and direction based on mode
-            let dx, dy;
-              if (this.flick.mode === 'striker') {
-                // Mode 1: Direction is OPPOSITE of drag (striker moves away from drag direction)
-                dx = this.flick.startX - this.flick.endX;  // Reversed direction
-                dy = this.flick.startY - this.flick.endY;  // Reversed direction
-            } else if (this.flick.mode === 'remote') {
-                // Mode 2: Direction is OPPOSITE of flick line (same slingshot effect as Mode 1)
-                dx = this.flick.startX - this.flick.endX;  // Reversed direction (opposite of flick line)
-                dy = this.flick.startY - this.flick.endY;  // Reversed direction (opposite of flick line)
             }
-            
+            // Calculate flick power and direction based on mode
+            let dx, dy;
+            if (this.flick.mode === 'striker' || this.flick.mode === 'remote') {
+                dx = this.flick.startX - this.flick.endX;
+                dy = this.flick.startY - this.flick.endY;
+            }
             const distance = Math.sqrt(dx * dx + dy * dy);
-
             if (distance > 5) { // Minimum distance to register flick
-                // Calculate power (normalize distance to 0-1 range)
                 const normalizedDistance = Math.min(distance / this.flickMaxLength, 1);
                 const power = normalizedDistance * Hand.FLICK_POWER;
-
-                // Apply velocity in the calculated direction
-                const velocityX = (dx / distance) * power * 100;
-                const velocityY = (dy / distance) * power * 100;
-
-                strikerRef.current.velocity.x = velocityX;
-                strikerRef.current.velocity.y = velocityY;
+                // Instead of applying velocity directly, emit flick event
+                if (socket && roomName) {
+                    socket.emit("strikerFlicked", {
+                        roomName,
+                        playerRole,
+                        flick: {
+                            startX: strikerRef.current.x,
+                            startY: strikerRef.current.y,
+                            direction: { x: dx, y: dy },
+                            power,
+                        },
+                    });
+                }
+                // Locally apply velocity for the active player
+                strikerRef.current.velocity.x = (dx / distance) * power * 100;
+                strikerRef.current.velocity.y = (dy / distance) * power * 100;
                 strikerRef.current.isStrikerMoving = true;
-
-                // Start animation
                 if (this.onAnimationStart) {
                     this.onAnimationStart();
                 }
-            }            // Reset flick state
+            }
+            // Reset flick state
             this._updateState({
                 isFlickerActive: false,
                 flick: {

@@ -22,8 +22,8 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
         origin: [
-            "https://carrom-2222.el.r.appspot.com",  // Your frontend URL
-            "http://localhost:3001"                   // Local development
+            "https://carrom-2222.el.r.appspot.com",
+            "http://localhost:3001"
         ],
         methods: ["GET", "POST"],
         credentials: true
@@ -107,7 +107,8 @@ setInterval(() => {
     const now = Date.now();
     lastHeartbeat.forEach((lastTime, clientId) => {
         if (now - lastTime > heartbeatTimeout) {
-            rooms.forEach((room, roomName) => {                // if either the creator or joiner leaves, delete the room and notify all players
+            rooms.forEach((room, roomName) => {
+                // if either the creator or joiner leaves, delete the room and notify all players
                 if (room.creator && room.creator.clientId === clientId) {
                     // Creator left - close the room
                     io.to(roomName).emit("roomClosed", "Creator has left the room");
@@ -877,6 +878,12 @@ io.on("connection", (socket) => {
             sliderValue,
             strikerX,
         });
+    });
+
+    // Relay striker flick input to other clients in the room
+    socket.on("strikerFlicked", ({ roomName, playerRole, flick }) => {
+        // Relay to all other clients in the room except sender
+        socket.to(roomName).emit("strikerFlicked", { playerRole, flick });
     });
 });
 

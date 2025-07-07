@@ -1,0 +1,23 @@
+deploy
+
+gcloud config set project carrom-2222
+
+flow
+
+main
+App
+Menu
+socket
+Room
+index
+Manager
+Board
+Hand
+Animation
+Events
+Draw
+Striker
+Coin
+Pocket
+Physics
+Player
