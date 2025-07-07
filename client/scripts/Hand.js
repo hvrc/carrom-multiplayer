@@ -18,7 +18,8 @@ export class Hand {
         // State management
         this.isPlacing = false;
         this.canPlace = true;
-        this.isFlickerActive = false;        this.flick = {
+        this.isFlickerActive = false;
+        this.flick = {
             active: false,
             startX: 0,
             startY: 0,
@@ -111,7 +112,8 @@ export class Hand {
     /**
      * Handle place button click
      */
-    handlePlace(strikerRef, socket, roomName, playerRole) {        this._updateState({
+    handlePlace(strikerRef, socket, roomName, playerRole) {
+        this._updateState({
             canPlace: true,
             isPlacing: false,
             isFlickerActive: false,
@@ -173,7 +175,8 @@ export class Hand {
 
     /**
      * Handle flick mouse move event
-     */    handleFlickMouseMove(e, { isMyTurn, strikerRef, canvasRef, playerRole }) {
+     */
+    handleFlickMouseMove(e, { isMyTurn, strikerRef, canvasRef, playerRole }) {
         if (
             !isMyTurn ||
             !strikerRef.current ||
@@ -238,10 +241,14 @@ export class Hand {
                 },
             });
             return;
-        }        // calculate velocity (opposite direction of pull)
+        }
+        
+        // calculate velocity (opposite direction of pull)
         let dx = this.flick.startX - this.flick.endX;
         let dy = this.flick.startY - this.flick.endY;
-        const dist = Math.hypot(dx, dy);        // Calculate proportional power based on distance pulled
+        const dist = Math.hypot(dx, dy);
+        
+        // Calculate proportional power based on distance pulled
         // Linear scaling with finest possible precision
         // Every single pixel of movement creates proportional power increase
         const distanceRatio = Math.min(dist / this.flickMaxLength, 1.0);
@@ -266,7 +273,9 @@ export class Hand {
 
         strikerRef.current.velocity.x = dx * effectivePower;
         strikerRef.current.velocity.y = dy * effectivePower;
-        strikerRef.current.isStrikerMoving = true;        this._updateState({
+        strikerRef.current.isStrikerMoving = true;
+        
+        this._updateState({
             flick: { active: false, startX: 0, startY: 0, endX: 0, endY: 0, mode: null, initialClickX: 0, initialClickY: 0 },
         });
 
@@ -274,7 +283,9 @@ export class Hand {
         if (this.onAnimationStart) {
             this.onAnimationStart();
         }
-    }    /**
+    }
+    
+    /**
      * Handle mouse down event (unified handler)
      */
     handleMouseDown(
@@ -288,6 +299,7 @@ export class Hand {
             isStrikerColliding,
         },
     ) {
+
         // block all input when animation is active
         if (isAnimating || !isMyTurn || !strikerRef.current) return;
 
@@ -298,7 +310,9 @@ export class Hand {
         if (playerRole === "joiner") {
             x = canvasRef.current.width - x;
             y = canvasRef.current.height - y;
-        }        // Check if striker is in idle state (not moving) AND not colliding with coins
+        }
+        
+        // Check if striker is in idle state (not moving) AND not colliding with coins
         if (!strikerRef.current.isStrikerMoving && !isStrikerColliding) {
             // Check if click is on the striker
             const clickedOnStriker = strikerRef.current.isPointInside(x, y);
@@ -352,9 +366,12 @@ export class Hand {
         };
         this.isMouseDown = true;
         this._addGlobalListeners();
-    }    /**
+    }
+    
+    /**
      * Handle mouse move event (unified handler)
-     */    handleMouseMove(
+     */
+    handleMouseMove(
         e,
         {
             isAnimating,
@@ -373,7 +390,9 @@ export class Hand {
 
         // Update flick line when we're in flick mode and have an active flick
         // BUT stop flicking immediately if striker is now colliding with coins
-        if (this.isFlickerActive && this.flick.active && strikerRef.current) {            // If striker is now colliding, cancel the flick interaction
+        if (this.isFlickerActive && this.flick.active && strikerRef.current) {
+            
+            // If striker is now colliding, cancel the flick interaction
             if (isStrikerColliding) {
                 this._updateState({
                     isFlickerActive: false,
@@ -393,6 +412,7 @@ export class Hand {
                 if (this.onRedraw) {
                     this.onRedraw();
                 }
+
                 return;
             }
 
@@ -403,7 +423,9 @@ export class Hand {
             if (playerRole === "joiner") {
                 x = canvasRef.current.width - x;
                 y = canvasRef.current.height - y;
-            }            let newEndX, newEndY;
+            }
+            
+            let newEndX, newEndY;
             let startX = strikerRef.current.x;  // Always draw from current striker position
             let startY = strikerRef.current.y;
 
@@ -419,7 +441,9 @@ export class Hand {
                 // Mode 2: Apply relative movement from striker center
                 newEndX = strikerRef.current.x + deltaX;
                 newEndY = strikerRef.current.y + deltaY;
-            }            // Calculate distance and cap at maximum length
+            }
+            
+            // Calculate distance and cap at maximum length
             const dx = newEndX - startX;
             const dy = newEndY - startY;
             const distance = Math.sqrt(dx * dx + dy * dy);
@@ -460,7 +484,9 @@ export class Hand {
         if (ctx.playerRole === "joiner") {
             x = ctx.canvasRef.current.width - x;
             y = ctx.canvasRef.current.height - y;
-        }        let newEndX, newEndY;
+        }
+        
+        let newEndX, newEndY;
         let startX = ctx.strikerRef.current.x;  // Always draw from current striker position
         let startY = ctx.strikerRef.current.y;
 
@@ -476,7 +502,9 @@ export class Hand {
             // Mode 2: Apply relative movement from striker center
             newEndX = ctx.strikerRef.current.x + deltaX;
             newEndY = ctx.strikerRef.current.y + deltaY;
-        }        // Calculate distance and cap at maximum length
+        }
+        
+        // Calculate distance and cap at maximum length
         const dx = newEndX - startX;
         const dy = newEndY - startY;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -504,7 +532,9 @@ export class Hand {
         if (this.onRedraw) {
             this.onRedraw();
         }
-    }/**
+    }
+    
+    /**
      * Handle mouse up event (unified handler)
      */
     handleMouseUp(
@@ -546,16 +576,21 @@ export class Hand {
                 }
                 return;
             }
+
             // Calculate flick power and direction based on mode
             let dx, dy;
             if (this.flick.mode === 'striker' || this.flick.mode === 'remote') {
                 dx = this.flick.startX - this.flick.endX;
                 dy = this.flick.startY - this.flick.endY;
             }
+
             const distance = Math.sqrt(dx * dx + dy * dy);
-            if (distance > 5) { // Minimum distance to register flick
+            if (distance > 5) {
+                
+                // Minimum distance to register flick
                 const normalizedDistance = Math.min(distance / this.flickMaxLength, 1);
                 const power = normalizedDistance * Hand.FLICK_POWER;
+
                 // Instead of applying velocity directly, emit flick event
                 if (socket && roomName) {
                     socket.emit("strikerFlicked", {
@@ -569,6 +604,7 @@ export class Hand {
                         },
                     });
                 }
+
                 // Locally apply velocity for the active player
                 strikerRef.current.velocity.x = (dx / distance) * power * 100;
                 strikerRef.current.velocity.y = (dy / distance) * power * 100;
@@ -577,6 +613,7 @@ export class Hand {
                     this.onAnimationStart();
                 }
             }
+
             // Reset flick state
             this._updateState({
                 isFlickerActive: false,
@@ -604,7 +641,9 @@ export class Hand {
         if (!ctx) return;
 
         // Prevent flicking if striker is colliding with coins
-        if (isStrikerColliding) {            // Reset flick state without executing the flick
+        if (isStrikerColliding) {
+            
+            // Reset flick state without executing the flick
             this._updateState({
                 isFlickerActive: false,
                 flick: {
@@ -624,7 +663,9 @@ export class Hand {
                 this.onRedraw();
             }
             return;
-        }        // Calculate flick power and direction based on mode
+        }
+        
+        // Calculate flick power and direction based on mode
         let dx, dy;
           if (this.flick.mode === 'striker') {
             // Mode 1: Direction is OPPOSITE of drag (striker moves away from drag direction)
@@ -638,7 +679,9 @@ export class Hand {
         
         const distance = Math.sqrt(dx * dx + dy * dy);
 
-        if (distance > 5) { // Minimum distance to register flick
+        if (distance > 5) {
+            
+            // Minimum distance to register flick
             // Calculate power (normalize distance to 0-1 range)
             const normalizedDistance = Math.min(distance / this.flickMaxLength, 1);
             const power = normalizedDistance * Hand.FLICK_POWER;
@@ -655,7 +698,9 @@ export class Hand {
             if (this.onAnimationStart) {
                 this.onAnimationStart();
             }
-        }        // Reset flick state
+        }
+        
+        // Reset flick state
         this._updateState({
             isFlickerActive: false,
             flick: {
@@ -732,7 +777,9 @@ export class Hand {
         
         this.sliderMin = baseX + strikerRadius;
         this.sliderMax = baseX + Draw.BASE_WIDTH - strikerRadius;
-    }/**
+    }
+    
+    /**
      * Convert slider percentage to X coordinate
      */
     sliderToX(percentage, playerRole = "creator") {
@@ -754,7 +801,9 @@ export class Hand {
         
         // Invert percentage for joiner player due to canvas rotation
         return playerRole === "joiner" ? (100 - percentage) : percentage;
-    }    /**
+    }
+    
+    /**
      * Handle slider value change
      */
     handleSliderChange(newValue, strikerRef, socket, roomName, playerRole) {
@@ -800,7 +849,8 @@ export class Hand {
      * Reset state (useful for game resets)
      */
     reset() {
-        this.flickMaxLength = Hand.FLICK_MAX_LENGTH;        this._updateState({
+        this.flickMaxLength = Hand.FLICK_MAX_LENGTH;
+        this._updateState({
             isPlacing: false,
             canPlace: true,
             isFlickerActive: false,

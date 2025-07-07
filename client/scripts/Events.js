@@ -93,6 +93,7 @@ export const handleStrikerAnimation = (
 /**
  * Handle turn switch events
  */
+let turnCounter = 1; // Start at 1 so first switch prints Turn 2
 export const handleTurnSwitched = (
     data,
     {
@@ -108,6 +109,17 @@ export const handleTurnSwitched = (
 ) => {
     if (data.roomName !== roomName) return;
 
+    // Increment and print turn number in bullet form
+    turnCounter++;
+    console.log(`\n• Turn ${turnCounter}`);
+
+    // Print whose turn it is in the client console
+    if (data.nextTurn === playerRole) {
+        console.log("It is now YOUR turn.");
+    } else {
+        console.log("It is now the opponent's turn.");
+    }
+
     // check if movement is still happening
     const areObjectsMoving =
         strikerRef.current?.isMoving(animationRef.current.MOVEMENT_THRESHOLD) ||
@@ -121,6 +133,7 @@ export const handleTurnSwitched = (
             type: "turnSwitch",
             newTurn: data.nextTurn,
         };
+        
     } else {
         // execute immediately if nothing is moving
         animationRef.current.executeStrikerReset(
