@@ -93,7 +93,6 @@ export const handleStrikerAnimation = (
 /**
  * Handle turn switch events
  */
-let turnCounter = 1; // Start at 1 so first switch prints Turn 2
 export const handleTurnSwitched = (
     data,
     {
@@ -109,17 +108,6 @@ export const handleTurnSwitched = (
 ) => {
     if (data.roomName !== roomName) return;
 
-    // Increment and print turn number in bullet form
-    turnCounter++;
-    console.log(`\n• Turn ${turnCounter}`);
-
-    // Print whose turn it is in the client console
-    if (data.nextTurn === playerRole) {
-        console.log("It is now YOUR turn.");
-    } else {
-        console.log("It is now the opponent's turn.");
-    }
-
     // check if movement is still happening
     const areObjectsMoving =
         strikerRef.current?.isMoving(animationRef.current.MOVEMENT_THRESHOLD) ||
@@ -133,7 +121,6 @@ export const handleTurnSwitched = (
             type: "turnSwitch",
             newTurn: data.nextTurn,
         };
-        
     } else {
         // execute immediately if nothing is moving
         animationRef.current.executeStrikerReset(
@@ -497,5 +484,37 @@ export const handleStrikerSliderUpdate = (
         if (ctx) {
             Draw.drawBoard(ctx, createGameState(), playerRole);
         }
+    }
+};
+
+/**
+ * Handle striker flick input from other players
+ */
+export const handleStrikerFlicked = (
+    { playerRole, flick },
+    { strikerRef, animationRef, canvasRef, coinsRef, playerRole: localRole }
+) => {
+    // Only apply if the event is from the opponent
+    if (playerRole === localRole) return;
+    const striker = strikerRef.current;
+    if (!striker) return;
+
+    // Set striker position and velocity from flick data
+    striker.x = flick.start.x;
+    striker.y = flick.start.y;
+    striker.velocity = { ...flick.velocity };
+    striker.isPlacing = false;
+    striker.isStrikerMoving = true;
+
+    // Optionally reset acceleration
+    striker.acceleration = { x: 0, y: 0 };
+
+    // Start animation loop if not already running
+    if (animationRef.current && !animationRef.current.isAnimating) {
+        animationRef.current.startAnimation({
+            strikerRef,
+            coinsRef,
+            canvasRef,
+        });
     }
 };

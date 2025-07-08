@@ -21,6 +21,12 @@ class Animation {
 
         // Callbacks that will be set from Board component
         this.callbacks = {};
+
+        // Movement stop synchronization
+        this.movementStopTimeout = null;
+        this.waitingForMovementStopConfirm = false;
+        this.movementStopConfirmed = false;
+        this.lastStrikerPosition = null;
     }
 
     // Set callbacks from the parent component
@@ -108,7 +114,9 @@ class Animation {
             if (actionData.continuedTurns !== undefined) {
                 continuedTurnsRef.current = actionData.continuedTurns;
             }
-        }        // apply the position reset
+        }
+        
+        // apply the position reset
         strikerRef.current.x = newX;
         strikerRef.current.y = newY;
         strikerRef.current.velocity = { x: 0, y: 0 };
@@ -767,6 +775,22 @@ class Animation {
         this.beingPocketedCoinsRef = [];
         this.beingPocketedStrikerRef = null;
         this.pendingTurnActionRef = null;
+    }
+
+    // Handle movement stop confirmation from other client
+    handleMovementStopConfirm(data, strikerRef) {
+        console.log("Movement stop confirmed by other client");
+        
+        // Mark that movement has been confirmed by both clients
+        this.movementStopConfirmed = true;
+        this.waitingForMovementStopConfirm = false;
+        
+        // Set the striker position from the data if available
+        if (data.strikerPosition && strikerRef?.current) {
+            strikerRef.current.x = data.strikerPosition.x;
+            strikerRef.current.y = data.strikerPosition.y;
+            strikerRef.current.velocity = { x: 0, y: 0 };
+        }
     }
 }
 

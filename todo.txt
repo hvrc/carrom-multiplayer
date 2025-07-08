@@ -30,7 +30,7 @@ no overlapping
 starting grid
 longer heartbeats in server?
 
-dont send each position, send input
+calculate physics on clients, send input via server
 blue button text on mobile
 no slider on mobile
 

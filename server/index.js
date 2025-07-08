@@ -7,9 +7,11 @@ import cors from 'cors';
 // createServer() creates an HTTP server, what is the nature of this server?
 // Server() creates a socket.io server that listens on the HTTP server
 // cors allows all origins *, and  allows GET and POST methods
+
 const app = express();
 
 // Add CORS middleware for Express routes
+
 app.use(cors({
     origin: [
         "https://carrom-2222.el.r.appspot.com",
@@ -34,6 +36,7 @@ const io = new Server(httpServer, {
 // rooms is a Map to store active rooms, map stores key-value pairs
 // lastHeartbeat is a Map to track the last heartbeat time for each client
 // 5 minutes heartbeat timeout (client sends every 5 minutes)
+
 const PORT = process.env.PORT || 3000;
 const rooms = new Map();
 const lastHeartbeat = new Map();
@@ -45,6 +48,7 @@ const heartbeatTimeout = 5 * 60 * 1000;
 // client itds is a set of client ids, initialized with the creator's id
 // the turn is intitially set to the creator
 // debts for both is initially zero
+
 function createRoom(roomName, creator) {
     return {
         creator,
@@ -61,6 +65,7 @@ function createRoom(roomName, creator) {
 // for each room, get the room sockets from the io.sockets.adapter.rooms,
 // if the room sockets are undefined or if the room sockets size is zero,
 // delete that room from the rooms map
+
 function cleanupEmptyRooms() {
     for (const [roomName, room] of rooms.entries()) {
         const roomSockets = io.sockets.adapter.rooms.get(roomName);
@@ -76,6 +81,7 @@ function cleanupEmptyRooms() {
 // if rooms have a size greater than zero, then add a list to the html string,
 // for eaech room in the rooms map, display the room's name, creator and joiner usernames
 // rest is a simple HTML response that sends the final html string
+
 app.get("/", (req, res) => {
     let html = "";
     if (rooms.size === 0) {
@@ -103,6 +109,7 @@ app.get("/", (req, res) => {
 // for each time stamp and client id in the map of heartbeats,
 // if the time difference between now and the last heartbeat is greater than the heartbeat timeout,
 // iterate through each room in the rooms map,
+
 setInterval(() => {
     const now = Date.now();
     lastHeartbeat.forEach((lastTime, clientId) => {
@@ -110,11 +117,9 @@ setInterval(() => {
             rooms.forEach((room, roomName) => {
                 // if either the creator or joiner leaves, delete the room and notify all players
                 if (room.creator && room.creator.clientId === clientId) {
-                    // Creator left - close the room
                     io.to(roomName).emit("roomClosed", "Creator has left the room");
                     rooms.delete(roomName);
                 } else if (room.joiner && room.joiner.clientId === clientId) {
-                    // Joiner left - close the room  
                     io.to(roomName).emit("roomClosed", "Player has left the room");
                     rooms.delete(roomName);
                 }
@@ -138,6 +143,7 @@ setInterval(() => {
 // connection info like socket.handshake.query.clientId,
 // room membership abilities like join, leave
 // sets a client id through the socket handshake query,
+
 io.on("connection", (socket) => {
     console.log("New client connected:", socket.id);
     
@@ -160,6 +166,7 @@ io.on("connection", (socket) => {
     // listen for heartbeat events from the client,
     // if the incoming clientId matches the one stored in lastHeartbeat,
     // update the last heartbeat time for that clientId, to the current time
+
     lastHeartbeat.set(clientId, Date.now());
     socket.on("heartbeat", ({ clientId: incomingClientId }) => {
         if (incomingClientId === clientId) {
@@ -179,6 +186,7 @@ io.on("connection", (socket) => {
     // else, join the room using socket.join,
     // emit an accessGranted event to the client
     // how does the socket emit work, who is it emitting that access granted to?
+
     socket.on("checkRoomAccess", ({ roomName, clientId: incomingClientId }) => {
         if (
             !incomingClientId ||
@@ -212,6 +220,7 @@ io.on("connection", (socket) => {
     // else if the player role is joiner and the room's joiner is set and the id matches the incoming clientId,
     // join the room using socket.join, emit an accessGranted event
     // else, emit an error, saying that the session or role is invalid
+
     socket.on("rejoinRoom", ({ roomName, username, clientId: incomingClientId, playerRole }) => {
         if (
             !incomingClientId ||
@@ -254,6 +263,7 @@ io.on("connection", (socket) => {
     // join the room using socket.join,
     // emit a playerJoined event to the client with username and room name,
     // emit a roomUpdate event to the client with room name, creator's username, no joiner, and whoseTurn set to "creator"
+
     socket.on("createRoom", ({ roomName, username, clientId: incomingClientId }) => {
         if (
             !incomingClientId ||
@@ -300,6 +310,7 @@ io.on("connection", (socket) => {
     // emit a roomUpdate event to all clients in the room with,
     // the room name, creator's username, joiner's username, and whoseTurn set to "creator" or "joiner",
     // based on the current state of the room
+
     socket.on("joinRoom", ({ roomName, username, clientId: incomingClientId }) => {
         if (
             !incomingClientId ||
@@ -339,7 +350,14 @@ io.on("connection", (socket) => {
         });
     });
 
-    // asks for room data
+    // listen for a event sent by clients, with a room name
+    // if the room name exists in the rooms map, get the room object
+    // send an event to the clients called a room update
+    // with the room name, the creator as the creator's username in the room object,
+    // the joiner as the joiner's username in the room object,
+    // and whose turn it is from the room object
+    // if the room does not exist, emit an error that the room does not exist
+
     socket.on("requestRoomData", ({ roomName }) => {
         if (rooms.has(roomName)) {
             const room = rooms.get(roomName);
@@ -357,25 +375,43 @@ io.on("connection", (socket) => {
         }
     });
 
-    // handle switching turns
+    // listen for a switch turn event sent by clients, that comes with,
+    // the room name and an incoming client id
+    // do i need the incoming client id?
+
+    // if the rooms map does not have the room name, emit an error
+    // get the room object from the map of rooms using the room name
+    // if there arent more that two client ids in the room,
+    // emit and error, do we need this?
+    // toggle whose turn between the strings creator or joiner
+
+    // send a event to all clients called room update
+    // with room name, creator's username in the room object,
+    // joiner's username in the room object if it exists,
+    // and whose turn it is from the room object
+
+    // send a event called turn switched to all clients,
+    // with a room name and and a variable called next turn,
+    // which has the value of the whose turn variable that the room object has
+    // this is supposedly used to reset the striker on the client side
+    // but i am not sure how it works?
 
     socket.on("switchTurn", ({ roomName, clientId: incomingClientId }) => {
-        if (!rooms.has(roomName)) {
-            socket.emit("error", "Room does not exist");
-            return;
-        }
+
+        // if (!rooms.has(roomName)) {
+        //     socket.emit("error", "Room does not exist");
+        //     return;
+        // }
 
         const room = rooms.get(roomName);
 
-        if (room.clientIds.size < 2) {
-            socket.emit("error", "Waiting for another player");
-            return;
-        }
+        // if (room.clientIds.size < 2) {
+        //     socket.emit("error", "Waiting for another player");
+        //     return;
+        // }
 
-        // toggle turn
         room.whoseTurn = room.whoseTurn === "creator" ? "joiner" : "creator";
 
-        // broadcast updated room state
         io.to(roomName).emit("roomUpdate", {
             roomName,
             creator: { username: room.creator.username },
@@ -383,29 +419,36 @@ io.on("connection", (socket) => {
             whoseTurn: room.whoseTurn,
         });
 
-        // Emit explicit turnSwitched event for striker reset
         io.to(roomName).emit("turnSwitched", {
             roomName,
             nextTurn: room.whoseTurn,
         });
     });
 
-    // handle continuing turn
+    // listen for a continue turn event sent by clients,
+    // emit a room update event to all clients in the room,
+    // with the room name, creator's username in the room object,
+    // joiner's username in the room object if it exists,
+    // whose turn it is from the room object,
+    // and the continued turns count that was received in the event data
+
+    // sent a continued turn event to all clients,
+    // with the room name, a continue turn variable,
+    // which has the value of whose turn variable that the room object has,
+    // and the continued turns count that was received in the event data
 
     socket.on("continueTurn", ({ roomName, continuedTurns }) => {
-        if (!rooms.has(roomName)) {
-            socket.emit("error", "Room does not exist");
-            return;
-        }
+        // if (!rooms.has(roomName)) {
+        //     socket.emit("error", "Room does not exist");
+        //     return;
+        // }
 
         const room = rooms.get(roomName);
-        if (room.clientIds.size < 2) {
-            socket.emit("error", "Waiting for another player");
-            return;
-        }
+        // if (room.clientIds.size < 2) {
+        //     socket.emit("error", "Waiting for another player");
+        //     return;
+        // }
 
-        // keep the same turn but update the continued turns count
-        // include remaining turns in room update
         io.to(roomName).emit("roomUpdate", {
             roomName,
             creator: { username: room.creator.username },
@@ -414,7 +457,6 @@ io.on("connection", (socket) => {
             continuedTurns,
         });
 
-        // emit turnContinued event for striker reset
         io.to(roomName).emit("turnContinued", {
             roomName,
             continueWith: room.whoseTurn,
@@ -422,83 +464,106 @@ io.on("connection", (socket) => {
         });
     });
 
-    // handle explicit leave action, immediate
-    // check if clientId is valid
-    // check if room exists
-    // check if clientId is the creator or joiner
-    // if creator, promote joiner to creator
-    // if joiner, remove joiner
-    // emit room update, emit room closed if creator leaves
-    // cleanup empty rooms
+    // listen for a leave room event ent by clients,
+    // it sends the room name and the incoming client id
+    // if rooms map has the received room name, get the room object from the map
+
+    // if the room's creator is set and the incoming client id matches the creator's client id,
+    // WHICH MEANS IT WAS THE CREATOR WHO SENT THE LEAVE ROOM EVENT TO THE CLIENT
+    // if the room's joiner is set, set the room creator's username and client id to that of the joiner
+    // set the room joiner to null, remove the incoming client id from the room's client ids set,
+    // set whose turn to "creator",
+    // send an event to all clients called room update,
+    // with room name, the creator as the new creator, the joiner as null,
+    // and whose turn, which was set to "creator"
+    // if the room's joiner is not set, delete the room from the rooms map,
+    // send an event to all clients in the room called room closed
+    
+    // else if the room joiner is set and the incoming client id matches the joiner's client id,
+    // WHICH MEANS IT WAS THE JOINER THAT LEFT THE ROOM
+    // set the joiner to null
+    // remove the incoming client id from the room's client ids set,
+    // send an event to all clients called room update,
+    // with room name, the creator as the creator's username in the room object,
+    // the joiner as null, and whose turn, which was set to "creator"
+
+    // delete the incoming client id from the lastHeartbeat map,
+    // clear rooms that are empty from the rooms map
+
     socket.on("leaveRoom", ({ roomName, clientId: incomingClientId }) => {
-        if (
-            !incomingClientId ||
-            incomingClientId === "null" ||
-            incomingClientId === "undefined"
-        ) {
-            socket.emit("error", "Invalid client ID");
-            return;
-        }
+        // if (!incomingClientId || incomingClientId === "null" || incomingClientId === "undefined") {
+        //     socket.emit("error", "Invalid client ID");
+        //     return;
+        // }
 
         if (rooms.has(roomName)) {
             const room = rooms.get(roomName);
+
             if (room.creator && room.creator.clientId === incomingClientId) {
                 if (room.joiner) {
-                    // promote joiner to creator
+
                     room.creator = {
                         username: room.joiner.username,
                         clientId: room.joiner.clientId,
                     };
+
                     room.joiner = null;
                     room.clientIds.delete(incomingClientId);
                     room.whoseTurn = "creator";
+
                     io.to(roomName).emit("roomUpdate", {
                         roomName,
                         creator: { username: room.creator.username },
                         joiner: null,
                         whoseTurn: room.whoseTurn,
                     });
+                    
                 } else {
                     rooms.delete(roomName);
-                    io.to(roomName).emit(
-                        "roomClosed",
-                        "Creator has left the room",
-                    );
+                    io.to(roomName).emit("roomClosed", "Creator has left the room");
                 }
-            } else if (
-                room.joiner &&
-                room.joiner.clientId === incomingClientId
-            ) {
+
+            } else if ( room.joiner && room.joiner.clientId === incomingClientId ) {
                 room.joiner = null;
                 room.clientIds.delete(incomingClientId);
+                room.whoseTurn = "creator";
+
                 io.to(roomName).emit("roomUpdate", {
                     roomName,
                     creator: { username: room.creator.username },
                     joiner: null,
                     whoseTurn: room.whoseTurn,
                 });
+
             }
+
             lastHeartbeat.delete(incomingClientId);
             cleanupEmptyRooms();
         }
-    });    // handle client disconnection - if either player leaves, close the room
+    });
+    
+    // listen for a disconnect event sent by the clients or is the socket, if it is, what's the difference?
+    // loop through each room in the rooms map,
+    // if the room's creator is set and the creator's client id matches the incoming socket id, or
+    // if the room's joiner is set and the joiner's client id matches the incoming socket id,
+    // send a room closed event to the respecitve room, and delete the room from the map of rooms
+    // delete the incoming socket id from the last heart beat map
+    // remove empty rooms from the rooms map
+
     socket.on("disconnect", () => {
-        // Find and close any room this client was in
         rooms.forEach((room, roomName) => {
+
             if (room.creator && room.creator.clientId === socket.id) {
-                // Creator disconnected - close the room
                 io.to(roomName).emit("roomClosed", "Creator has left the room");
                 rooms.delete(roomName);
+
             } else if (room.joiner && room.joiner.clientId === socket.id) {
-                // Joiner disconnected - close the room
                 io.to(roomName).emit("roomClosed", "Player has left the room");
                 rooms.delete(roomName);
             }
         });
         
-        // Clean up heartbeat tracking
         lastHeartbeat.delete(socket.id);
-        
         cleanupEmptyRooms();
     });
 
@@ -704,7 +769,7 @@ io.on("connection", (socket) => {
     });
 
     // handle striker pocketed event
-    socket.on( "striker-pocketed", ({ roomName, playerRole, scoreChange, respawnCoin }) => {
+    socket.on("striker-pocketed", ({ roomName, playerRole, scoreChange, respawnCoin }) => {
             if (!rooms.has(roomName)) return;
             const room = rooms.get(roomName);
 
@@ -804,39 +869,33 @@ io.on("connection", (socket) => {
 
     // handle queen pocketed state updates
     // broadcast queen pocketed state to all players in the room
-    socket.on(
-        "queenPocketedUpdate",
-        ({ roomName, playerRole, hasPocketedQueen }) => {
-            if (!rooms.has(roomName)) {
-                socket.emit("error", "Room does not exist");
-                return;
-            }
+    socket.on("queenPocketedUpdate", ({ roomName, playerRole, hasPocketedQueen }) => {
+        if (!rooms.has(roomName)) {
+            socket.emit("error", "Room does not exist");
+            return;
+        }
 
-            io.to(roomName).emit("queenPocketedUpdate", {
-                roomName,
-                playerRole,
-                hasPocketedQueen,
-            });
-        },
-    );
+        io.to(roomName).emit("queenPocketedUpdate", {
+            roomName,
+            playerRole,
+            hasPocketedQueen,
+        });
+    });
 
     // handle queen covered state updates
     // broadcast queen covered state to all players in the room
-    socket.on(
-        "queenCoveredUpdate",
-        ({ roomName, playerRole, hasCoveredQueen }) => {
-            if (!rooms.has(roomName)) {
-                socket.emit("error", "Room does not exist");
-                return;
-            }
+    socket.on("queenCoveredUpdate", ({ roomName, playerRole, hasCoveredQueen }) => {
+        if (!rooms.has(roomName)) {
+            socket.emit("error", "Room does not exist");
+            return;
+        }
 
-            io.to(roomName).emit("queenCoveredUpdate", {
-                roomName,
-                playerRole,
-                hasCoveredQueen,
-            });
-        },
-    );
+        io.to(roomName).emit("queenCoveredUpdate", {
+            roomName,
+            playerRole,
+            hasCoveredQueen,
+        });
+    });
 
     // handle game reset events
     // reset room state to initial state
@@ -885,6 +944,78 @@ io.on("connection", (socket) => {
         // Relay to all other clients in the room except sender
         socket.to(roomName).emit("strikerFlicked", { playerRole, flick });
     });
+
+    // Handle movement stop synchronization
+    socket.on("movementStopped", ({ roomName, playerRole, strikerPosition }) => {
+        if (!rooms.has(roomName)) {
+            socket.emit("error", "Room does not exist");
+            return;
+        }
+
+        // Relay movement stop to other client with striker position
+        socket.to(roomName).emit("movementStopped", { 
+            roomName, 
+            playerRole,
+            strikerPosition 
+        });
+    });
+
+    socket.on("movementStopConfirmed", ({ roomName, playerRole, strikerPosition }) => {
+        if (!rooms.has(roomName)) {
+            socket.emit("error", "Room does not exist");
+            return;
+        }
+
+        // Relay confirmation to other client with striker position
+        socket.to(roomName).emit("movementStopConfirmed", { 
+            roomName, 
+            playerRole,
+            strikerPosition 
+        });
+    });
+
+    // Handle turn switching with movement stop sync
+    // socket.on("switchTurn", ({ roomName }) => {
+    //     if (!rooms.has(roomName)) {
+    //         socket.emit("error", "Room does not exist");
+    //         return;
+    //     }
+
+    //     const room = rooms.get(roomName);
+        
+    //     // Toggle turn
+    //     const prevTurn = room.whoseTurn;
+    //     room.whoseTurn = prevTurn === "creator" ? "joiner" : "creator";
+
+    //     // Broadcast turn switch to all clients
+    //     io.to(roomName).emit("turnSwitched", {
+    //         roomName,
+    //         prevTurn,
+    //         nextTurn: room.whoseTurn
+    //     });
+
+    //     // Update room state
+    //     io.to(roomName).emit("roomUpdate", {
+    //         roomName,
+    //         creator: { username: room.creator.username },
+    //         joiner: room.joiner ? { username: room.joiner.username } : null,
+    //         whoseTurn: room.whoseTurn,
+    //     });
+    // });
+
+    // Handle turn continuation with movement stop sync
+    // socket.on("continueTurn", ({ roomName, continueWith, continuedTurns }) => {
+    //     if (!rooms.has(roomName)) {
+    //         socket.emit("error", "Room does not exist");
+    //         return;
+    //     }
+
+    //     io.to(roomName).emit("turnContinued", {
+    //         roomName,
+    //         continueWith,
+    //         continuedTurns
+    //     });
+    // });
 });
 
 // start server
