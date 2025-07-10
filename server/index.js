@@ -1,3 +1,12 @@
+// when a client connects via socket.connect() in Menu.jsx, Room.jsx,
+// it creates a unique socket connection for that client
+// socket.on(), this waits for specific events from the client
+// socket emit(), sends an event to client who initiated the connection
+// when client join a room using socket.join(room), 
+// socket.io maintains a registry, which sockets are in which room
+// socket.to(room).emit(), sends an event to all clients in room except the sender
+// io.to(room).emit(), sends event to all clients in room
+
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -569,22 +578,41 @@ io.on("connection", (socket) => {
 
     // coin and striker movement
 
-    // handle striker movement sync
+    // listen for a striker move event sent by clients,
+    // it has a data object containing room name, striker x, y
+    // send a striker move event to all clients in the room
+    // so basically on the active client's window, the striker moves,
+    // that client sends a striker move event with the data? to the server
+    // socket refers to that client's socket connection
+    // socket.to; the server then sends the same event to all clients in the room,
+    // EXCEPT the client who sent it, so only the inactive player receives the event
+
     socket.on("strikerMove", (data) => {
         socket.to(data.roomName).emit("strikerMove", data);
     });
 
-    // handle striker animation sync
+    // listens for a striker animation event sent by a client,
+    // and sends it back to all clients in the room
+    // it has a data object containing room name, striker x, y, and animation type
+    // supposedly handles striker animation sync
+
     socket.on("strikerAnimation", (data) => {
         socket.to(data.roomName).emit("strikerAnimation", data);
     });
 
-    // handle coin movement sync
+    // listens for a coins move event sent by a client
+    // and sends it abck to all clients in the room
+    // what does the data contain?
+    // supposedly handles coin movement sync
+
     socket.on("coinsMove", (data) => {
         socket.to(data.roomName).emit("coinsMove", data);
     });
 
-    // handle coin pocketing sync
+    // listens for a coins pocketed event sent by a client,
+    // and sends it back to all clients in the room
+    // what does the data contain?
+
     socket.on("coinsPocketed", (data) => {
         socket.to(data.roomName).emit("coinsPocketed", data);
     });
@@ -592,19 +620,29 @@ io.on("connection", (socket) => {
     // scoring and debt
 
     // handle striker pocketing and debt increment
+
+    // listen for a striker pocketed event sent by client
+    // split the data sent by client into room name, role, 
+    // debt of the player who pocketed their striker
+    // return if the room does not exist in the rooms map
+    // get room from the rooms map using the room name,
+    // if the room does not have a property called debts,
+    // initialize a debts object for the room set to zero for each player role
+    // set the debt of the respecitve player role in the room object,
+    // to the actual debt of the player client who sent the event
+    // send a event to all client called debt update,
+    // with the same contents as in the data that the server recceived
+
     socket.on("strikerPocketed", (data) => {
         const { roomName, playerRole, debt } = data;
-        if (!rooms.has(roomName)) return;
+
+        // if (!rooms.has(roomName)) return;
 
         const room = rooms.get(roomName);
-        if (!room.debts) {
-            room.debts = { creator: 0, joiner: 0 };
-        }
+        if (!room.debts) {room.debts = { creator: 0, joiner: 0 };}
 
-        // increment debt for the player who pocketed their striker
         room.debts[playerRole] = debt;
 
-        // emit debt update to all players in the room
         io.to(roomName).emit("debtUpdate", {
             roomName,
             playerRole,
@@ -612,41 +650,83 @@ io.on("connection", (socket) => {
         });
     });
 
-    // handle score updates when coins are pocketed
+    // listen for an update score event sent by a client
+    // data sent over contains room name, player role, coin color, and increment
+    // THE COIN COLOR REFERS TO THE COLOR OF THE COIN THAT WAS POCKETED
+    // THE INCREMENT COULD BE POSITIVE OR NEGATIVE
+    // get the room from the rooms map using the room name,
+    // if the room does not have a property scores and or debts set,
+    // initialize them to zero for each player role
+
+    // get the player color based on their role, this means role is attached to color
+    // if the coin color sent by the client matches the color of the player role
+    // WHICH MEANS A PLAYER POCKETED THEIR OWN COLOR COIN,
+    // WHERE IS THE LOGIC FOR IF PLAYER POCKETS A COIN THAT IS NOT THEIR OWN COLOR?
+
+    // THE LOGIC BELOW BASICALLY TAKES CARE OF PAYING DEBT IF DEBT WAS GREATER THAN ZERO
+    // get the current debt and score for the player role from the room map, 
+    // if they havent been set, set them to zero
+    // if the player's debt is greater than zero,
+    // decrement the debt for the player in the room object by one
+    // send an event to all clients in the room called debt update,
+    // with the room name, player role whose debt needs to be updated, and the new debt value
+    // set a two second delay,
+    // send an event to all clients saying debt paid, 
+    // with the new score, debt in the room object in the map for the player role
+    // the player/coin color, and the coin id
+    // I AM UNSURE WHY THIS DEBT PAID EVENT IS BEING SENT, WHAT PURPOSE IS IT SERVING?
+    // I AM SURE THERE IS A VALID REASON BUT DON'T KNOW WHAT IT IS
+
+    // if player who pocketed coin does not have debt greater than zero,
+    // create a score change variable that is set to the increment, which would usually be one
+    // and set the room map room object score for the player role to,
+    // the sum of the current score and this score change
+
+    // send a score update to all the clients with the room name,
+    // and score object for scores of both players
+    // WHY ARE WE SENDING ROOM NAME?
+
+    // send a room update to all clients to synchronise all data 
+    // NOPT USRE IF THIS IS REDUNDANT OR NECESSARY,
+    // I SEE THAT THAT THE ROOM VARIABLE THAT IS IS REFERENCING ALL THE VALUES FROM
+    // IS THE ROOM OBJECT IN THE ROOMS MAP
+    
+    // return statement to avoid double processing, not sure what that means?
+    // set a score change variable to the increment, if no increment set it to one
+    // THIS IS VERY CONFUSING TO ME! 
+    // increment the score of the player role that was sent by the event,
+    // SO THIS MEANS IN THE CASE THAT THE PLAYER COLOR IS NOT EQUAL TO THE,
+    // COIN COLOR THAT WAS POCKETED, THE INCREMENT SENT BY CLIENT SHOULDBE NEGATIVE ONE
+    // in the case of a queen it should be positive one, basically there will be seperate sends,
+    // for this update score based on which color was pocketed,
+    // this calcualtion of color is not being done on the server, which begs the quyestion why is there
+    // a check for if the color was the same for player and coin? if (coinColor === playerColor)
+    // send a score update to all clients
+
     socket.on("updateScore", (data) => {
         const { roomName, playerRole, coinColor, increment } = data;
         if (!rooms.has(roomName)) return;
 
         const room = rooms.get(roomName);
-        if (!room.scores) {
-            room.scores = { creator: 0, joiner: 0 };
-        }
-        if (!room.debts) {
-            room.debts = { creator: 0, joiner: 0 };
-        }
 
-        // check if player pocketed their own color coin
+        if (!room.scores) { room.scores = { creator: 0, joiner: 0 }; }
+        if (!room.debts) { room.debts = { creator: 0, joiner: 0 }; }
+
         const playerColor = playerRole === "creator" ? "white" : "black";
+
         if (coinColor === playerColor) {
             const currentDebt = room.debts[playerRole] || 0;
             const currentScore = room.scores[playerRole] || 0;
 
-            // if player has debt > 0 and pockets their own color coin
             if (currentDebt > 0) {
-                // decrement debt by 1
                 room.debts[playerRole] = currentDebt - 1;
 
-                // DON'T change the score - it stays the same due to debt payment
-                // room.scores[playerRole] remains unchanged
-
-                // emit debt update immediately
                 io.to(roomName).emit("debtUpdate", {
                     roomName,
                     playerRole,
                     debt: room.debts[playerRole],
                 });
 
-                // delay the coin addition until after animation completes (2 seconds)
                 setTimeout(() => {
                     io.to(roomName).emit("debtPaid", {
                         roomName,
@@ -657,19 +737,17 @@ io.on("connection", (socket) => {
                         coinId: Date.now() + Math.random(),
                     });
                 }, 2000);
+
             } else {
-                // no debt, increment score normally
                 const scoreChange = increment !== undefined ? increment : 1;
                 room.scores[playerRole] = currentScore + scoreChange;
             }
 
-            // emit score update to sync scores
             io.to(roomName).emit("scoreUpdate", {
                 roomName: roomName,
                 scores: room.scores,
             });
 
-            // emit room update to sync everything in UI
             io.to(roomName).emit("roomUpdate", {
                 roomName,
                 creator: {
@@ -689,20 +767,39 @@ io.on("connection", (socket) => {
                 scores: room.scores,
             });
 
-            // early return to avoid double processing
             return;
         }
 
-        // normal scoring logic for all other cases (opponent's coins, queen, etc.)
         const scoreChange = increment !== undefined ? increment : 1;
         room.scores[playerRole] = (room.scores[playerRole] || 0) + scoreChange;
 
-        // emit score update to all players in the room
         io.to(roomName).emit("scoreUpdate", {
             roomName: roomName,
             scores: room.scores,
         });
     });
+
+    // listen for a debt update event from one of the clients
+    // get room based on room name from the rooms map
+    // if the score and debt has not been set in the room object, set them to zero
+    // get the current score 
+    // if the current score is greater than ero ,
+    // THIS IS WHERE PLAYER HAS TO PAY BY SCORE TO SETTLE DEBT
+    // decrement room object score for player role by 1 
+    // WHY DO WE NEED THE CURRENT SCORE VALUE WHY CANT WE JUST USE -- ?
+    // get coin color based on player role
+    // send an event to all clients called debt paid,
+    // with room name, role, new score tand debt through room map room object
+    // coin color, coin id
+    // broadcast a event to all clients except the one who sent the event,
+    // called score update, with room name and scores object from the room map
+    
+    // if the current score is not greater than zero,
+    // increment the debt in the room map for the player role
+    // send an event to all clients in the room called debt update,
+    // with the updates state with room name, creator, joiner,
+    // username, debt, whose turn
+    // some of these values look super redundant!
 
     socket.on("updateDebt", ({ roomName, playerRole, debt }) => {
         if (!rooms.has(roomName)) return;
@@ -718,19 +815,11 @@ io.on("connection", (socket) => {
 
         const currentScore = room.scores[playerRole] || 0;
 
-        // check if player can pay debt automatically, has score > 0
         if (currentScore > 0) {
-            // reduce score by 1 instead of increasing debt
             room.scores[playerRole] = currentScore - 1;
-            // keep debt the same, don't increase it
-            // room.debts[playerRole] remains unchanged
 
-            // determine coin color based on player role
             const coinColor = playerRole === "creator" ? "white" : "black";
 
-            // broadcast debt payment to all players in room
-            // keep existing debt
-            // generate a unique ID for the new coin
             io.to(roomName).emit("debtPaid", {
                 roomName,
                 playerRole,
@@ -740,16 +829,14 @@ io.on("connection", (socket) => {
                 coinId: Date.now() + Math.random(),
             });
 
-            // also broadcast score update
             io.to(roomName).emit("scoreUpdate", {
                 roomName: roomName,
                 scores: room.scores,
             });
+        
         } else {
-            // if can't pay debt, increment debt as before
             room.debts[playerRole]++;
 
-            // broadcast updated room state including debts
             io.to(roomName).emit("roomUpdate", {
                 roomName,
                 creator: {
@@ -768,42 +855,66 @@ io.on("connection", (socket) => {
         }
     });
 
-    // handle striker pocketed event
+    // listen for an event for when striker is pocketed,
+    // expect data room name, role of player whos pocketed the striker,
+    // the expected score change, and respawn coin?
+    // the score change is always negative one because its a striker pocket,
+    // the respawn coin is a coin object containing id, color, x, y
+    // this coin object is ususlal null but is being set to queen when queen needs to be respawned
+    // this doesnt seem logical, every coin should be tracked and be available for respawn!
+    // get room from map of rooms
+    // should i be getting the room outside of these functions? maybe not 
+    // set scores to zero if not defined
+    // increment the score for the player role in the room object by the score change,
+    // score change is usually negative one so we are basically decrementing it
+    // send an event to all clients except sender called striker penalty,
+    // which has the player role, new score and respawn coin data
+    // this feels horrible! i need to figure out better ways to update game state
+
     socket.on("striker-pocketed", ({ roomName, playerRole, scoreChange, respawnCoin }) => {
-            if (!rooms.has(roomName)) return;
-            const room = rooms.get(roomName);
+        // if (!rooms.has(roomName)) return;
+        const room = rooms.get(roomName);
 
-            // update score
-            if (!room.scores) {
-                room.scores = { creator: 0, joiner: 0 };
-            }
+        if (!room.scores) { room.scores = { creator: 0, joiner: 0 }; }
 
-            room.scores[playerRole] += scoreChange;
+        room.scores[playerRole] += scoreChange;
 
-            // broadcast score update and coin respawn in one event
-            io.to(roomName).emit("striker-penalty", {
-                roomName,
-                playerRole,
-                newScore: room.scores[playerRole],
-                respawnCoin,
-            });
-        },
-    );
+        io.to(roomName).emit("striker-penalty", {
+            roomName,
+            playerRole,
+            newScore: room.scores[playerRole],
+            respawnCoin,
+        });
+    });
 
-    // handle coin respawn event
-    // broadcast new coin position to other players
+    // listen for coin respawned even sent with the room id and coin
+    // sends back a coin respawned event to clients that didnt send it
+    // i assume coin is the coin object containing, id, color, x, y
+
     socket.on("coin-respawned", ({ roomId, coin }) => {
         socket.to(roomId).emit("coin-respawned", {
             coin,
         });
     });
 
-    // handle debt payment, when player has both score > 0 and debt > 0
+    // listens for a pay debt event, expects data room name and role of player paying debt
+    // get room from rooms map
+    // set score and debts objects for creator and joiner in the room object, if not defined already
+    // get current score and debt
+    // check if player has a score and debt greater than zero
+    // reduce score and debt by one each
+    // get coin color to be paid as debt, based on role of player payihng debt
+    // send a event called debt paid, with new score, debt, the coin color and coin id
+    // coin id is being set randonly based on the timestamp, does this make any sense?
+    // shouldnt i be accessing a coin from a list of pocketed coins?
+    // if player does not have a score greater than zero, they cant pay debt,
+    // so send an error event to client who initiated the connection
+
     socket.on("payDebt", ({ roomName, playerRole }) => {
-        if (!rooms.has(roomName)) {
-            socket.emit("error", "Room does not exist");
-            return;
-        }
+        // if (!rooms.has(roomName)) {
+        //     socket.emit("error", "Room does not exist");
+        //     return;
+        // }
 
         const room = rooms.get(roomName);
         if (!room.scores) room.scores = { creator: 0, joiner: 0 };
@@ -811,17 +922,12 @@ io.on("connection", (socket) => {
         const currentScore = room.scores[playerRole] || 0;
         const currentDebt = room.debts[playerRole] || 0;
 
-        // check if player can pay debt, has both score > 0 and debt > 0
         if (currentScore > 0 && currentDebt > 0) {
-            // reduce score by 1 and debt by 1
             room.scores[playerRole] = currentScore - 1;
             room.debts[playerRole] = currentDebt - 1;
 
-            // determine coin color based on player role
             const coinColor = playerRole === "creator" ? "white" : "black";
 
-            // broadcast debt payment to all players in room
-            // generate a unique ID for the new coin
             io.to(roomName).emit("debtPaid", {
                 roomName,
                 playerRole,
@@ -830,6 +936,7 @@ io.on("connection", (socket) => {
                 coinColor,
                 coinId: Date.now() + Math.random(),
             });
+
         } else {
             socket.emit(
                 "error",
@@ -840,11 +947,15 @@ io.on("connection", (socket) => {
 
     // handle queen reset event, when queen needs to be returned to center
     // broadcast queen reset to all players in the room
+    // expect an event from client called queen reset
+    // send event to client who is not the sender thats a queen reset,
+    // with the room name and player role whose queen is being reset
+
     socket.on("queenReset", ({ roomName, playerRole }) => {
-        if (!rooms.has(roomName)) {
-            socket.emit("error", "Room does not exist");
-            return;
-        }
+        // if (!rooms.has(roomName)) {
+        //     socket.emit("error", "Room does not exist");
+        //     return;
+        // }
 
         io.to(roomName).emit("queenReset", {
             roomName,
@@ -852,13 +963,17 @@ io.on("connection", (socket) => {
         });
     });
 
-    // handle cover turn state updates
-    // broadcast cover turn state to all players in the room
+    // listens for a cover turn update from a client, expecting the room name, player role,
+    // and a bool indicating if it is the cover turn
+    // then we send the same event to the all clients
+    // this basically relays across the room that the player of specific role is in their cover turn
+    // there has gotta be a sleeker way of doing this!?
+
     socket.on("coverTurnUpdate", ({ roomName, playerRole, isCoverTurn }) => {
-        if (!rooms.has(roomName)) {
-            socket.emit("error", "Room does not exist");
-            return;
-        }
+        // if (!rooms.has(roomName)) {
+        //     socket.emit("error", "Room does not exist");
+        //     return;
+        // }
 
         io.to(roomName).emit("coverTurnUpdate", {
             roomName,
@@ -867,13 +982,16 @@ io.on("connection", (socket) => {
         });
     });
 
-    // handle queen pocketed state updates
-    // broadcast queen pocketed state to all players in the room
+    // listens for queen pocketed update,
+    // expects room anem, player role who pocketed queen and bool indicating if queen was pocketed
+    // emits the same event to all clients
+    // note that there are cases when the bool is false, like when a player fails to cover queen
+
     socket.on("queenPocketedUpdate", ({ roomName, playerRole, hasPocketedQueen }) => {
-        if (!rooms.has(roomName)) {
-            socket.emit("error", "Room does not exist");
-            return;
-        }
+        // if (!rooms.has(roomName)) {
+        //     socket.emit("error", "Room does not exist");
+        //     return;
+        // }
 
         io.to(roomName).emit("queenPocketedUpdate", {
             roomName,
@@ -882,13 +1000,15 @@ io.on("connection", (socket) => {
         });
     });
 
-    // handle queen covered state updates
-    // broadcast queen covered state to all players in the room
+    // listen for a quieen covered event from a client
+    // expects room name, player role who covered queen, and bool indicating if they did
+    // send the same event to all clients in the room, with the same data
+    
     socket.on("queenCoveredUpdate", ({ roomName, playerRole, hasCoveredQueen }) => {
-        if (!rooms.has(roomName)) {
-            socket.emit("error", "Room does not exist");
-            return;
-        }
+        // if (!rooms.has(roomName)) {
+        //     socket.emit("error", "Room does not exist");
+        //     return;
+        // }
 
         io.to(roomName).emit("queenCoveredUpdate", {
             roomName,
@@ -897,16 +1017,22 @@ io.on("connection", (socket) => {
         });
     });
 
-    // handle game reset events
-    // reset room state to initial state
-    // always reset to creator's turn
-    // broadcast game reset to all players in the room
-    // broadcast room update to sync turn state and ensure UI updates
+    // listen for a game reset event sent by one of the clients
+    // expect room name and reason as data
+    // get room from rooms map
+    // set whose turn to creator
+    // set debts to zero
+    // send a game reset event to all clients in room
+    // send a room update with the updated room object as data 
+    // feels like a weird way to reset game!
+    // i feel like server should receive a game state update from clients,
+    // judge if it should be reset, and reset accordingly
+
     socket.on("gameReset", ({ roomName, reason }) => {
-        if (!rooms.has(roomName)) {
-            socket.emit("error", "Room does not exist");
-            return;
-        }
+        // if (!rooms.has(roomName)) {
+        //     socket.emit("error", "Room does not exist");
+        //     return;
+        // }
 
         const room = rooms.get(roomName);
         room.whoseTurn = "creator";
@@ -923,12 +1049,16 @@ io.on("connection", (socket) => {
         io.to(roomName).emit("roomUpdate", room);
     });
 
-    // handle striker slider position updates
+    // listen for striker slider update
+    // expect the room name, player role who is sliding,
+    // the value of the slider, and x position of the slider
+    // send an event to other client in room except sender
+    // with the same data, this is used to sync striker slider position
     socket.on("strikerSliderUpdate", ({ roomName, playerRole, sliderValue, strikerX }) => {
-        if (!rooms.has(roomName)) {
-            socket.emit("error", "Room does not exist");
-            return;
-        }
+        // if (!rooms.has(roomName)) {
+        //     socket.emit("error", "Room does not exist");
+        //     return;
+        // }
 
         // broadcast slider position to other players in the room
         socket.to(roomName).emit("strikerSliderUpdate", {
@@ -939,20 +1069,23 @@ io.on("connection", (socket) => {
         });
     });
 
-    // Relay striker flick input to other clients in the room
+    // listen for a striker flicked event and send it to other clients that are not the sender
+    // flick is an object that contains start x, y of striker
+    // and velocity x, y components of the flick after user drags and releases
     socket.on("strikerFlicked", ({ roomName, playerRole, flick }) => {
-        // Relay to all other clients in the room except sender
         socket.to(roomName).emit("strikerFlicked", { playerRole, flick });
     });
 
-    // Handle movement stop synchronization
+    // listen for a movement stopped event, expecting data room name, 
+    // player role of player whose turn it was while movemnt stopped
+    // and the striker's position when it did stop
+    // relay this event and data to tother client who is not sender
     socket.on("movementStopped", ({ roomName, playerRole, strikerPosition }) => {
-        if (!rooms.has(roomName)) {
-            socket.emit("error", "Room does not exist");
-            return;
-        }
+        // if (!rooms.has(roomName)) {
+        //     socket.emit("error", "Room does not exist");
+        //     return;
+        // }
 
-        // Relay movement stop to other client with striker position
         socket.to(roomName).emit("movementStopped", { 
             roomName, 
             playerRole,
@@ -960,13 +1093,17 @@ io.on("connection", (socket) => {
         });
     });
 
-    socket.on("movementStopConfirmed", ({ roomName, playerRole, strikerPosition }) => {
-        if (!rooms.has(roomName)) {
-            socket.emit("error", "Room does not exist");
-            return;
-        }
+    // listen for another event called movement stop confirmed
+    // expect data room name, player role, and striker position
+    // this is sent by the inacitve player to confirm that the movement has indeed stopped
+    // send this to the other client, theres gotta be a sleeker way to do this! maybe
 
-        // Relay confirmation to other client with striker position
+    socket.on("movementStopConfirmed", ({ roomName, playerRole, strikerPosition }) => {
+        // if (!rooms.has(roomName)) {
+        //     socket.emit("error", "Room does not exist");
+        //     return;
+        // }
+
         socket.to(roomName).emit("movementStopConfirmed", { 
             roomName, 
             playerRole,
@@ -974,7 +1111,8 @@ io.on("connection", (socket) => {
         });
     });
 
-    // Handle turn switching with movement stop sync
+    // handle turn switching with movement stop sync
+
     // socket.on("switchTurn", ({ roomName }) => {
     //     if (!rooms.has(roomName)) {
     //         socket.emit("error", "Room does not exist");
@@ -1003,7 +1141,8 @@ io.on("connection", (socket) => {
     //     });
     // });
 
-    // Handle turn continuation with movement stop sync
+    // handle turn continuation with movement stop sync
+
     // socket.on("continueTurn", ({ roomName, continueWith, continuedTurns }) => {
     //     if (!rooms.has(roomName)) {
     //         socket.emit("error", "Room does not exist");
@@ -1019,6 +1158,7 @@ io.on("connection", (socket) => {
 });
 
 // start server
+
 httpServer.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

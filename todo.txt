@@ -30,7 +30,10 @@ no overlapping
 starting grid
 longer heartbeats in server?
 
+map out client server communication and game functions
 calculate physics on clients, send input via server
+handling multiple coin pocket or coin and striker pocket, and turn continuation or change
+
 blue button text on mobile
 no slider on mobile
 
@@ -56,7 +59,6 @@ cutting the moon, circles
 slider to rotate starting grid
 
 display pocketed coins
-handling multiple coin pocket or coin and striker pocket, and turn continuation or change
 handle positioning of muliple coin reset to the center
 striker position reset animation
 coins stacked on frame
