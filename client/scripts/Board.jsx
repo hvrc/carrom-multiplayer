@@ -6,7 +6,23 @@ import Hand from "./Hand";
 import Animation from "./Animation";
 import * as Events from "./Events";
 
-// Add custom hook for responsive scaling
+// a custom hook for responsive scaling
+// returns a scale value
+// use state; i remember this sets scale variable to 1,
+// and defines setscale as a function that can change the value of scale
+// define a bool that is set to true if width is lesser than normal desktop width,
+// to recognize if device is a Mobile
+// define variables for width and height
+// frame size is the length of outer side of board square
+// set horizontal scale such that board is almost the same width as screen, with a small gap
+// if on desktop, set horizontal and vertical scale with more gap between borders and outer gap of board
+// set scale using both horizontal and vertical scale, 
+// idk if we should have another multiplier 0.71!
+// call the update scale function, the hook is called evey time the component first mounts
+// theres a listener for whenever window resizes which calls the update scale function when it does resize
+// 'resize' is an event
+// returning the removal of the listener, as a cleanup function, i don't quite get this!
+
 function useResponsiveScale() {
     const [scale, setScale] = useState(1);
 
@@ -17,13 +33,11 @@ function useResponsiveScale() {
             const height = window.innerHeight;
             
             if (isMobile) {
-                // Mobile: fit to window width with small margins
                 const horizontalScale = (width - 20) / Draw.FRAME_SIZE;
                 setScale(horizontalScale);
-            } else {                // Desktop: moderately zoomed out view
+            } else {
                 const horizontalScale = (width - 100) / Draw.FRAME_SIZE;
                 const verticalScale = (height - 100) / Draw.FRAME_SIZE;
-                // Use 0.65 for moderate zoom out on desktop
                 setScale(Math.min(horizontalScale, verticalScale) * 0.7);
             }
         };
@@ -36,206 +50,242 @@ function useResponsiveScale() {
     return scale;
 }
 
-function GameCanvas({
-    isMyTurn = true,
-    socket,
-    playerRole,
-    roomName,
-    manager,
-    onLeaveRoom,
-    creatorUsername = "",
-    joinerUsername = "",
-}) {
-    const [showHelp, setShowHelp] = useState(false);
+// game canvas takes these parameters, the feel so unintuitive to me!
+// i dont even know what the game canvas is, where is it?
+// a function that handles the toggling of the help text
+// is this redundant
+// a use state to set the bool that shows/hides the help text
+//  prev => !prev is a safe way to toggle a bool in react
+// instread of directly setting the value we use a function,
+// that receives its previous state and returns its opposite
+// we wrap it in hand help toggle to follow reacts pattern,
+// of having dedicated event handlers
+// i still thing we should be able to do this without wrapping inside handler
+// create a style element, write some css in its context
+// and append it to the document head
+// that css is absolutely insane it needs to be formatted and moved somewhere else!
+// i assume it is for the invisible slider but it could be for other elements too
+// return a cleanup function that removes the style element when the component unmounts
 
-    // Help text toggle handler
+function GameCanvas({isMyTurn = true, socket, playerRole, roomName, manager, onLeaveRoom, creatorUsername = "", joinerUsername = ""}) {
+    const [showHelp, setShowHelp] = useState(false);
     const handleHelpToggle = () => {
         setShowHelp(prev => !prev);
     };
 
-    // Add custom CSS for slider thumb styling
     useEffect(() => {
         const style = document.createElement('style');
-        style.textContent = `                 <div style={{
-                    width: '900px',
-                    padding: '20px',
-                    backgroundColor: 'white',
-                    border: '2px solid black',
-                    fontFamily: 'Helvetica, Arial, sans-serif',
-                    fontSize: '16px',
-                    position: 'absolute',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    pointerEvents: 'none',
-                    zIndex: 2
-                }}>
-                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-                </div>)WebKit browsers (Chrome, Safari) - HIDDEN */
+        style.textContent = `
+            <div style={{
+                width: '900px',
+                padding: '20px',
+                backgroundColor: 'white',
+                border: '2px solid black',
+                fontFamily: 'Helvetica, Arial, sans-serif',
+                fontSize: '16px',
+                position: 'absolute',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                pointerEvents: 'none',
+                zIndex: 2
+            }}>
+                Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+                Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+                Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris
+                nisi ut aliquip ex ea commodo consequat.
+            </div>
+
             input[type="range"]::-webkit-slider-thumb {
                 -webkit-appearance: none;
                 appearance: none;
                 width: 30px;
-                height: 120px; /* Much taller thumb covering entire vertical bottom space */
-                border-radius: 0; /* No rounding for minimal rectangle */
-                background: transparent; /* Invisible - no color */
+                height: 120px;
+                border-radius: 0;
+                background: transparent;
                 cursor: pointer;
-                border: none; /* No border for minimal look */
-                box-shadow: none; /* No shadow for minimal look */
-                transition: none; /* No transitions for minimal look */
-                margin-top: -54px; /* Center the thumb on the track: (120px - 12px) / 2 = 54px */
-                opacity: 0; /* Completely invisible */
+                border: none;
+                box-shadow: none;
+                transition: none;
+                margin-top: -54px;
+                opacity: 0;
             }
-            
+
             input[type="range"]::-webkit-slider-thumb:hover {
-                background: transparent; /* Keep invisible even on hover */
-                box-shadow: none; /* No shadow on hover */
-                transform: none; /* No scaling on hover */
-                opacity: 0; /* Keep invisible on hover */
+                background: transparent;
+                box-shadow: none;
+                transform: none;
+                opacity: 0;
             }
-            
-            /* Firefox - HIDDEN */
+
             input[type="range"]::-moz-range-thumb {
                 width: 30px;
-                height: 120px; /* Much taller thumb covering entire vertical bottom space */
-                border-radius: 0; /* No rounding for minimal rectangle */
-                background: transparent; /* Invisible - no color */
+                height: 120px;
+                border-radius: 0;
+                background: transparent;
                 cursor: pointer;
-                border: none; /* No border for minimal look */
-                box-shadow: none; /* No shadow for minimal look */
-                margin-top: -54px; /* Center the thumb on the track: (120px - 12px) / 2 = 54px */
-                opacity: 0; /* Completely invisible */
+                border: none;
+                box-shadow: none;
+                margin-top: -54px;
+                opacity: 0;
             }
-            
+
             input[type="range"]::-moz-range-thumb:hover {
-                background: transparent; /* Keep invisible even on hover */
-                box-shadow: none; /* No shadow on hover */
-                opacity: 0; /* Keep invisible on hover */
+                background: transparent;
+                box-shadow: none;
+                opacity: 0;
             }
-            
-            /* Remove default track styling for Firefox - HIDDEN */
+
             input[type="range"]::-moz-range-track {
-                background: transparent; /* No fill - transparent background */
+                background: transparent;
                 height: 12px;
-                border-radius: 0; /* No rounded edges */
-                border: none; /* No border - completely invisible */
-                outline: none; /* Remove any default outline */
-                box-shadow: none; /* Remove any default box shadow */
-                opacity: 0; /* Completely invisible */
+                border-radius: 0;
+                border: none;
+                outline: none;
+                box-shadow: none;
+                opacity: 0;
             }
-            
-            /* Track styling for WebKit - HIDDEN */
+
             input[type="range"]::-webkit-slider-runnable-track {
                 width: 100%;
                 height: 12px;
-                background: transparent; /* No fill - transparent background */
-                border-radius: 0; /* No rounded edges */
-                border: none; /* No border - completely invisible */
-                outline: none; /* Remove any default outline */
-                box-shadow: none; /* Remove any default box shadow */
-                opacity: 0; /* Completely invisible */
+                background: transparent;
+                border-radius: 0;
+                border: none;
+                outline: none;
+                box-shadow: none;
+                opacity: 0;
             }
-            
-            /* Additional overrides to ensure invisibility */
+
             input[type="range"] {
                 background: transparent !important;
                 outline: none;
-                opacity: 0; /* Make the entire slider invisible */
+                opacity: 0;
             }
-            
-            /* Override any remaining browser default track styling - HIDDEN */
+
             input[type="range"]::-webkit-slider-track {
                 background: transparent !important;
-                border: none; /* No border */
+                border: none;
                 border-radius: 0;
                 height: 12px;
-                opacity: 0; /* Completely invisible */
+                opacity: 0;
             }
-            
-            /* Disabled slider styling - HIDDEN */
+
             input[type="range"]:disabled::-webkit-slider-thumb {
-                background: transparent; /* Keep invisible when disabled */
+                background: transparent;
                 cursor: not-allowed;
-                opacity: 0; /* Keep invisible when disabled */
+                opacity: 0;
             }
-            
+
             input[type="range"]:disabled::-moz-range-thumb {
-                background: transparent; /* Keep invisible when disabled */
+                background: transparent;
                 cursor: not-allowed;
-                opacity: 0; /* Keep invisible when disabled */
+                opacity: 0;
             }
-            
+
             input[type="range"]:disabled::-webkit-slider-track {
-                border: none; /* No border when disabled */
-                opacity: 0; /* Keep invisible when disabled */
+                border: none;
+                opacity: 0;
             }
-            
+
             input[type="range"]:disabled::-moz-range-track {
-                border: none; /* No border when disabled */
-                opacity: 0; /* Keep invisible when disabled */
+                border: none;
+                opacity: 0;
             }
         `;
+
         document.head.appendChild(style);
         
-        // Cleanup function to remove style when component unmounts
         return () => {
             document.head.removeChild(style);
         };
+
     }, []);
+
+    // null references for canvas and striker
+    // what are these references? is it a react thing? why are they usefull?
+    // more refs for continued turns and debt,
+    // why cant all these just be a simple integer or object?
+    // hand, state of hand reference
+    // animation, state of animation
+    // what is the context of the animation?
+    // striker colliding bool reference
+    // coins list reference?
+    // set of coins pocketed all time
+    // list of coins pocketed this turn
+    // coins pocketed should be a list that player has,
+    // but honestly i guess it's okay for the board to have it,
+    // but it should have an intunitive way of accessing it
+    // initial coin counts for game end detection? weird?
 
     const canvasRef = useRef(null);
     const strikerRef = useRef(null);
-
-    // track how many continued turns remain
-    // track how many coins player owes
     const continuedTurnsRef = useRef(0);
     const debtRef = useRef(0);
-
-    // Hand interaction manager
     const handRef = useRef(new Hand());
     const [handState, setHandState] = useState(handRef.current.getState());
-
-    // Animation manager
     const animationRef = useRef(new Animation());
-    const [animationState, setAnimationState] = useState(
-        animationRef.current.getState(),
-    );
-
+    const [animationState, setAnimationState] = useState(animationRef.current.getState());
     const [isStrikerColliding, setIsStrikerColliding] = useState(false);
     const [coins, setCoins] = useState([]);
     const coinsRef = useRef([]);
-
-    // all-time pocketed coins
-    // coins pocketed in current turn
     const pocketedCoinsRef = useRef(new Set());
     const pocketedThisTurnRef = useRef([]);
-    
-    // track initial coin counts for game end detection
     const initialCoinCountsRef = useRef({ white: 0, black: 0, red: 0 });
 
-    // add coins at the center of the board
-    // place 2 white and 2 black coins, queen
+    // get boards top left x, y then get its center x, y
+    // create coin formation, 
+    // create coin fotmation returns an array of coin objects,
+    // in the form id, color, x, y
+    // set the coins refernce to coins list
+    // then set the state variable value of coins as the local variable,
+    // this is supposedly done because updating the state variable,
+    // triggers react to re render the board with the new coin positions
+    // this feels messy! shouldnt there be a simpler way of doing this?
+    // now a new variable called all coins, used to count coins,
+    // for inital coin counts reference... seems unneccessary!
+
     useEffect(() => {
-        if (!canvasRef.current) return;
+
+        // if (!canvasRef.current) return;
+
         const boardX = (canvasRef.current.width - Draw.BOARD_SIZE) / 2;
         const boardY = (canvasRef.current.height - Draw.BOARD_SIZE) / 2;
-
-        // Center position for coin formation
         const centerX = boardX + Draw.BOARD_SIZE / 2;
         const centerY = boardY + Draw.BOARD_SIZE / 2;
-
-        // Create coin formation using the static method from Coin class
         const coins = Coin.createCoinFormation(centerX, centerY);
 
         coinsRef.current = coins;
         setCoins(coins);
 
-        // Update initial coin counts for game end detection
         const allCoins = coins;
         initialCoinCountsRef.current = {
             white: allCoins.filter((coin) => coin.color === "white").length,
             black: allCoins.filter((coin) => coin.color === "black").length,
             red: allCoins.filter((coin) => coin.color === "red").length,
-        };        // Set up Hand callbacks
+        };
+        
+        // what is a callback?
+        // a callback is a function that gets passed as an argument to another function
+        // i guess in this case we are passing multiple functions like on state changed etc. 
+        // into set call backs
+        // and these functions will get executed at a later time. what later time? 
+        // how does the code know when the on state change or on striker move actually happens?
+        // on state change, i assume if the state of hand ref changes, set the hand state to the new state
+        // if striker moves, send a striker move event to the server, with data, what is in data?
+        // i beleive its room name, player role, new x, y of striker
+        // do the same for collision updates
+        // this is too much right? like either server does all the calcualtions and relays to clients,
+        // or both clients do the cxaluclations and reconcile the state through the server
+        // on animation start, set abunatuoin ref to have its animaintg bool set to true
+        // on redraw, have collision state as data
+        // ctx is the canvas context, which is used to draw on the canvas
+        // set an object called current game state
+        // the variables inside these seem pretty random! why have we chosen these?
+        // we are supposedly using the current hand ref to avoid react state timing issues, no clue what that means
+        // draw board with the context, current game state, player role?, collision state? why the last two?
+        // if slider changes, send an event to server with data what is the data??
+        // i believe its room name, player role, slider value which is sldier's x, and striker x position 
+
         handRef.current.setCallbacks({
             onStateChange: (newState) => setHandState(newState),
             onStrikerMove: (data) => {
@@ -246,6 +296,7 @@ function GameCanvas({
                     });
                 }
             },
+            
             onCollisionUpdate: (isColliding) => {
                 setIsStrikerColliding(isColliding);
                 if (socket && roomName) {
@@ -256,57 +307,128 @@ function GameCanvas({
                     });
                 }
             },
-            onAnimationStart: () =>
-                animationRef.current.updateState({ isAnimating: true }),            onRedraw: (collisionState) => {
-                const ctx = canvasRef.current?.getContext("2d");
-                if (ctx) {
-                    // Use current hand state directly to avoid React state timing issues
-                    const currentGameState = {
-                        strikerRef,
-                        coinsRef,
-                        isStrikerColliding,
-                        isFlickerActive: handRef.current.isFlickerActive,
-                        flick: handRef.current.flick,
-                        flickMaxLength: handRef.current.flickMaxLength,
-                    };
-                    Draw.drawBoard(
-                        ctx,
-                        currentGameState,
-                        playerRole,
-                        collisionState,
-                    );
-                }
-            },
-            onSliderChange: (data) => {
-                if (socket && roomName) {
-                    socket.emit("strikerSliderUpdate", {
-                        roomName,
-                        playerRole,
-                        ...data,
-                    });
-                }
-            },
-        });
 
-        // Initialize slider boundaries
-        handRef.current.calculateSliderBoundaries(canvasRef);        // Set up Animation callbacks
+            onAnimationStart: () =>
+                animationRef.current.updateState({ isAnimating: true }),
+                onRedraw: (collisionState) => {
+                    const ctx = canvasRef.current?.getContext("2d");
+                    if (ctx) {
+                        const currentGameState = {
+                            strikerRef,
+                            coinsRef,
+                            isStrikerColliding,
+                            isFlickerActive: handRef.current.isFlickerActive,
+                            flick: handRef.current.flick,
+                            flickMaxLength: handRef.current.flickMaxLength,
+                        };
+                        Draw.drawBoard(
+                            ctx,
+                            currentGameState,
+                            playerRole,
+                            collisionState,
+                        );
+                    }
+                },
+
+                onSliderChange: (data) => {
+                    if (socket && roomName) {
+                        socket.emit("strikerSliderUpdate", {
+                            roomName,
+                            playerRole,
+                            ...data,
+                        });
+                    }
+                },
+            }
+        );
+
+        // set slider boundaries
+        // we had previosulsy set callcback for hand refernce
+        // now we are setting callpacks for animation refernce
+        // what does it even means for animation reference to be set to is animating as a callback
+        // the line is giving animation.js a way to tell react when animation starts or stops,
+        // while preserving other animation state properties 
+        // its a callback function that takes boolean parameters and updates only the is animating property
+        // in the animation state while keeping other properties unchanged
+        // set hand state updates hand reference's current state to its new state
+        // create a game state called here as a callback, it is defined below, again,
+        // why have we chosen these particular values as game state?
+        // on striker reset, slider is reset to center, hand state is updated
+
+        handRef.current.calculateSliderBoundaries(canvasRef);
+
         animationRef.current.setCallbacks({
-            setIsAnimating: (isAnimating) =>
-                setAnimationState((prev) => ({ ...prev, isAnimating })),
+
+            setIsAnimating: (isAnimating) => setAnimationState((prev) => ({ ...prev, isAnimating })),
+
             setHandState: (newState) => {
                 handRef.current._updateState(newState);
                 setHandState(handRef.current.getState());
             },
-            createGameState: () => createGameState(),            onStrikerReset: (newX) => {
-                // Reset slider to center when striker resets
+
+            createGameState: () => createGameState(),
+            
+            onStrikerReset: (newX) => {
                 const newSliderValue = handRef.current.xToSlider(newX, playerRole);
                 handRef.current.sliderValue = newSliderValue;
                 setHandState(handRef.current.getState());
             },
         });
+
     }, []);
 
-    // Helper function to create game state object for drawing
+    // helper function to create game state object for drawing
+    // why have we chosen these values? are all these values used?
+    // is it optiam to have these values and not any other?
+    // is there a better way to create, store and reference a game state?
+
+    // slider change function takes e as a parameter, 
+    // e is an input event object containing, e target, which is the range input element htat trigered the event,
+    // and e target value which holds the actual current value of the slider 
+    // set a new value variable based on the value of e
+    // call handle slider change to set the slider value in the hand reference
+    // send hand state to the hand reference state
+    // all this s just feels weird
+
+    // call handle mouse down thorugh the hand reference
+    // with the is animating bool
+    // and other variables
+
+    // call the handle mouse move function through the hand reference
+
+    // call the handle mouse up function from the hand reference
+
+    // get the x y of the touch on the canvas
+    // this function is never used, why is that?
+
+    // a reference to store the last known touch position for touch end
+
+    // a function that creates a mouse event out of a touch event 
+    // takes data type, touch, canvas
+    // type can be mousedown, mousemove, mouseup
+    // touch contains coordiantes and screen positions
+    // canvas element for calculating correct offset coordiantes?
+    // the event props help convert features of a touch event,
+    // into the props that we can put in a mouse event
+    // creates that mouse event using type and event prop
+    // also add missing properties that some browsers expect
+    // return the mouse event
+
+    // start of a touch
+    // prevent default actions like scrolling, panning, zooming, long press etc.
+    // if there is exactly one finger touching the screen
+    // get the first touch point from the touch event array
+    // update reference that tracks the last known touch position
+    // create a mouse event out of the touch
+    // pass the mouse event to the existing mouse handler
+
+    // do the same for the touch move,
+    // however you end up creating a mouse move type mouse event
+
+    // same for the touch end but you create the mouse event early, 
+    // reset the last touch reference,
+    // and also trigger a mouse up or flick handler through hand reference
+
     const createGameState = () => ({
         strikerRef,
         coinsRef,
@@ -314,14 +436,14 @@ function GameCanvas({
         isFlickerActive: handState.isFlickerActive,
         flick: handState.flick,
         flickMaxLength: handState.flickMaxLength,
-    });    // Handle slider change
+    });
+    
     const handleSliderChange = (e) => {
         const newValue = parseFloat(e.target.value);
         handRef.current.handleSliderChange(newValue, strikerRef, socket, roomName, playerRole);
         setHandState(handRef.current.getState());
     };
 
-    // Mouse and touch event handlers delegated to Hand class
     const handleMouseDown = (e) => {
         handRef.current.handleMouseDown(e, {
             isAnimating: animationState.isAnimating,
@@ -341,14 +463,15 @@ function GameCanvas({
             playerRole,
         });
     };
-
+    
     const handleMouseUp = (e) => {
         handRef.current.handleMouseUp(e, {
             isMyTurn,
             strikerRef,
             isStrikerColliding,
         });
-    };    // Convert touch event to canvas coordinates
+    };
+    
     const getTouchPosition = (touch, canvas) => {
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
@@ -359,12 +482,9 @@ function GameCanvas({
         };
     };
 
-    // Store the last known touch position for touch end
     const lastTouchRef = useRef({ clientX: 0, clientY: 0, screenX: 0, screenY: 0 });
 
-    // Create a synthetic mouse event from a touch event
     const createSyntheticMouseEvent = (type, touch, canvas) => {
-        // For touchend, use the last known position
         const eventProps = {
             bubbles: true,
             cancelable: true,
@@ -381,7 +501,6 @@ function GameCanvas({
 
         const event = new MouseEvent(type, eventProps);
 
-        // Add missing properties that some browsers expect
         if (!event.offsetX) {
             const rect = canvas.getBoundingClientRect();
             event.offsetX = eventProps.clientX - rect.left;
@@ -391,12 +510,10 @@ function GameCanvas({
         return event;
     };
 
-    // Touch event handlers
     const handleTouchStart = (e) => {
         e.preventDefault();
         if (e.touches.length === 1) {
             const touch = e.touches[0];
-            // Store the touch position
             lastTouchRef.current = {
                 clientX: touch.clientX,
                 clientY: touch.clientY,
@@ -412,7 +529,6 @@ function GameCanvas({
         e.preventDefault();
         if (e.touches.length === 1) {
             const touch = e.touches[0];
-            // Update the last known position
             lastTouchRef.current = {
                 clientX: touch.clientX,
                 clientY: touch.clientY,
@@ -426,14 +542,15 @@ function GameCanvas({
 
     const handleTouchEnd = (e) => {
         e.preventDefault();
-        // Create mouseup event using the last known position
         const mouseEvent = createSyntheticMouseEvent('mouseup', null, canvasRef.current);
         handleMouseUp(mouseEvent);
+        lastTouchRef.current = {
+            clientX: 0,
+            clientY: 0,
+            screenX: 0,
+            screenY: 0
+        };
 
-        // Clear the last touch position
-        lastTouchRef.current = { clientX: 0, clientY: 0, screenX: 0, screenY: 0 };
-
-        // Also trigger the global mouse up handler in Hand.js
         if (handRef.current._lastContext) {
             handRef.current.handleFlickMouseUp(mouseEvent, {
                 isMyTurn,
@@ -553,9 +670,11 @@ function GameCanvas({
         };
 
         socket.on("turnSwitched", handleTurnSwitched);
+
         return () => {
             socket.off("turnSwitched", handleTurnSwitched);
         };
+
     }, [socket, roomName, playerRole]);
 
     // listen for turn continuation and reset striker position
@@ -763,7 +882,9 @@ function GameCanvas({
         const intervalId = setInterval(checkCollisions, 16); // ~60fps
 
         return () => clearInterval(intervalId);
-    }, [isStrikerColliding, coins]); // re-run when coins change    // separate useEffect for initial canvas drawing
+    }, [isStrikerColliding, coins]); // re-run when coins change
+
+    // separate useEffect for initial canvas drawing
     useEffect(() => {
         const canvas = canvasRef.current;
         const ctx = canvas.getContext("2d");
