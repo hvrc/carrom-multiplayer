@@ -564,34 +564,22 @@ function GameCanvas({isMyTurn = true, socket, playerRole, roomName, manager, onL
     useEffect(() => {
         
         // animation should run if it's my turn OR there are pocketing animations happening
-        const shouldAnimate =
-            animationState.isAnimating &&
-            (isMyTurn ||
-                animationRef.current.beingPocketedCoinsRef.length > 0 ||
-                animationRef.current.beingPocketedStrikerRef !== null);
+        const shouldAnimate = animationState.isAnimating &&
+            (isMyTurn || animationRef.current.beingPocketedCoinsRef.length > 0 || animationRef.current.beingPocketedStrikerRef !== null);
 
         if (shouldAnimate) {
-            const params = {
-                strikerRef,
-                isMyTurn,
-                canvasRef,
-                coinsRef,
-                setCoins,
-                socket,
-                roomName,
-                playerRole,
-                manager,
-                continuedTurnsRef,
-                debtRef,
-                pocketedThisTurnRef,
-                pocketedCoinsRef,
+            const params = { strikerRef, isMyTurn, canvasRef, coinsRef,
+                setCoins, socket, roomName, playerRole, manager, continuedTurnsRef,
+                debtRef, pocketedThisTurnRef, pocketedCoinsRef,
             };
+
             animationRef.current.startAnimation(params);
         }
 
         return () => {
             animationRef.current.stopAnimation();
         };
+
     }, [animationState.isAnimating, socket, roomName, isMyTurn]);
     
     // listen for striker moves from other player
@@ -616,7 +604,9 @@ function GameCanvas({isMyTurn = true, socket, playerRole, roomName, manager, onL
                 playerRole,
                 createGameState,
             });
-        };        const handleStrikerAnimation = (data) => {
+        };
+        
+        const handleStrikerAnimation = (data) => {
             Events.handleStrikerAnimation(data, {
                 roomName,
                 strikerRef,
