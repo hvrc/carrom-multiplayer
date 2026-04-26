@@ -407,10 +407,10 @@ io.on("connection", (socket) => {
 
     socket.on("switchTurn", ({ roomName, clientId: incomingClientId }) => {
 
-        // if (!rooms.has(roomName)) {
-        //     socket.emit("error", "Room does not exist");
-        //     return;
-        // }
+        if (!rooms.has(roomName)) {
+            socket.emit("error", "Room does not exist");
+            return;
+        }
 
         const room = rooms.get(roomName);
 
@@ -447,10 +447,10 @@ io.on("connection", (socket) => {
     // and the continued turns count that was received in the event data
 
     socket.on("continueTurn", ({ roomName, continuedTurns }) => {
-        // if (!rooms.has(roomName)) {
-        //     socket.emit("error", "Room does not exist");
-        //     return;
-        // }
+        if (!rooms.has(roomName)) {
+            socket.emit("error", "Room does not exist");
+            return;
+        }
 
         const room = rooms.get(roomName);
         // if (room.clientIds.size < 2) {
@@ -600,15 +600,6 @@ io.on("connection", (socket) => {
         socket.to(data.roomName).emit("strikerAnimation", data);
     });
 
-    // listens for a coins move event sent by a client
-    // and sends it abck to all clients in the room
-    // what does the data contain?
-    // supposedly handles coin movement sync
-
-    socket.on("coinsMove", (data) => {
-        socket.to(data.roomName).emit("coinsMove", data);
-    });
-
     // listens for a coins pocketed event sent by a client,
     // and sends it back to all clients in the room
     // what does the data contain?
@@ -636,7 +627,7 @@ io.on("connection", (socket) => {
     socket.on("strikerPocketed", (data) => {
         const { roomName, playerRole, debt } = data;
 
-        // if (!rooms.has(roomName)) return;
+        if (!rooms.has(roomName)) return;
 
         const room = rooms.get(roomName);
         if (!room.debts) {room.debts = { creator: 0, joiner: 0 };}
@@ -872,7 +863,7 @@ io.on("connection", (socket) => {
     // this feels horrible! i need to figure out better ways to update game state
 
     socket.on("striker-pocketed", ({ roomName, playerRole, scoreChange, respawnCoin }) => {
-        // if (!rooms.has(roomName)) return;
+        if (!rooms.has(roomName)) return;
         const room = rooms.get(roomName);
 
         if (!room.scores) { room.scores = { creator: 0, joiner: 0 }; }
@@ -911,10 +902,10 @@ io.on("connection", (socket) => {
     // so send an error event to client who initiated the connection
 
     socket.on("payDebt", ({ roomName, playerRole }) => {
-        // if (!rooms.has(roomName)) {
-        //     socket.emit("error", "Room does not exist");
-        //     return;
-        // }
+        if (!rooms.has(roomName)) {
+            socket.emit("error", "Room does not exist");
+            return;
+        }
 
         const room = rooms.get(roomName);
         if (!room.scores) room.scores = { creator: 0, joiner: 0 };
@@ -932,7 +923,7 @@ io.on("connection", (socket) => {
                 roomName,
                 playerRole,
                 newScore: room.scores[playerRole],
-                newDebt: room.debs[playerRole],
+                newDebt: room.debts[playerRole],
                 coinColor,
                 coinId: Date.now() + Math.random(),
             });
@@ -952,10 +943,10 @@ io.on("connection", (socket) => {
     // with the room name and player role whose queen is being reset
 
     socket.on("queenReset", ({ roomName, playerRole }) => {
-        // if (!rooms.has(roomName)) {
-        //     socket.emit("error", "Room does not exist");
-        //     return;
-        // }
+        if (!rooms.has(roomName)) {
+            socket.emit("error", "Room does not exist");
+            return;
+        }
 
         io.to(roomName).emit("queenReset", {
             roomName,
@@ -970,10 +961,10 @@ io.on("connection", (socket) => {
     // there has gotta be a sleeker way of doing this!?
 
     socket.on("coverTurnUpdate", ({ roomName, playerRole, isCoverTurn }) => {
-        // if (!rooms.has(roomName)) {
-        //     socket.emit("error", "Room does not exist");
-        //     return;
-        // }
+        if (!rooms.has(roomName)) {
+            socket.emit("error", "Room does not exist");
+            return;
+        }
 
         io.to(roomName).emit("coverTurnUpdate", {
             roomName,
@@ -988,10 +979,10 @@ io.on("connection", (socket) => {
     // note that there are cases when the bool is false, like when a player fails to cover queen
 
     socket.on("queenPocketedUpdate", ({ roomName, playerRole, hasPocketedQueen }) => {
-        // if (!rooms.has(roomName)) {
-        //     socket.emit("error", "Room does not exist");
-        //     return;
-        // }
+        if (!rooms.has(roomName)) {
+            socket.emit("error", "Room does not exist");
+            return;
+        }
 
         io.to(roomName).emit("queenPocketedUpdate", {
             roomName,
@@ -1005,10 +996,10 @@ io.on("connection", (socket) => {
     // send the same event to all clients in the room, with the same data
     
     socket.on("queenCoveredUpdate", ({ roomName, playerRole, hasCoveredQueen }) => {
-        // if (!rooms.has(roomName)) {
-        //     socket.emit("error", "Room does not exist");
-        //     return;
-        // }
+        if (!rooms.has(roomName)) {
+            socket.emit("error", "Room does not exist");
+            return;
+        }
 
         io.to(roomName).emit("queenCoveredUpdate", {
             roomName,
@@ -1029,10 +1020,10 @@ io.on("connection", (socket) => {
     // judge if it should be reset, and reset accordingly
 
     socket.on("gameReset", ({ roomName, reason }) => {
-        // if (!rooms.has(roomName)) {
-        //     socket.emit("error", "Room does not exist");
-        //     return;
-        // }
+        if (!rooms.has(roomName)) {
+            socket.emit("error", "Room does not exist");
+            return;
+        }
 
         const room = rooms.get(roomName);
         room.whoseTurn = "creator";
@@ -1055,10 +1046,10 @@ io.on("connection", (socket) => {
     // send an event to other client in room except sender
     // with the same data, this is used to sync striker slider position
     socket.on("strikerSliderUpdate", ({ roomName, playerRole, sliderValue, strikerX }) => {
-        // if (!rooms.has(roomName)) {
-        //     socket.emit("error", "Room does not exist");
-        //     return;
-        // }
+        if (!rooms.has(roomName)) {
+            socket.emit("error", "Room does not exist");
+            return;
+        }
 
         // broadcast slider position to other players in the room
         socket.to(roomName).emit("strikerSliderUpdate", {
@@ -1081,10 +1072,10 @@ io.on("connection", (socket) => {
     // and the striker's position when it did stop
     // relay this event and data to tother client who is not sender
     socket.on("movementStopped", ({ roomName, playerRole, strikerPosition }) => {
-        // if (!rooms.has(roomName)) {
-        //     socket.emit("error", "Room does not exist");
-        //     return;
-        // }
+        if (!rooms.has(roomName)) {
+            socket.emit("error", "Room does not exist");
+            return;
+        }
 
         socket.to(roomName).emit("movementStopped", { 
             roomName, 
@@ -1099,10 +1090,10 @@ io.on("connection", (socket) => {
     // send this to the other client, theres gotta be a sleeker way to do this! maybe
 
     socket.on("movementStopConfirmed", ({ roomName, playerRole, strikerPosition }) => {
-        // if (!rooms.has(roomName)) {
-        //     socket.emit("error", "Room does not exist");
-        //     return;
-        // }
+        if (!rooms.has(roomName)) {
+            socket.emit("error", "Room does not exist");
+            return;
+        }
 
         socket.to(roomName).emit("movementStopConfirmed", { 
             roomName, 
