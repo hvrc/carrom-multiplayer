@@ -4,188 +4,225 @@
 
 | Topic | Decision |
 |---|---|
-| Physics authority | **Server-authoritative** — client sends flick input, server runs physics, broadcasts final state |
+| Physics authority | **Server-authoritative** — client sends flick input, server runs physics, streams animation frames |
+| Sync model | **Frame streaming** — server broadcasts ~30–60 fps frames during a flick so both clients see the same animation |
+| Client preview | **None** — pure server-render, accept latency. Add optimism later only if needed |
+| Flick payload | **`{ strikerX, angle, force }`** — server validates striker placement, computes velocity, simulates |
+| Anti-cheat | **Trust clients** — friends-only game, no turn-ownership validation needed |
 | Queen rules | **Standard** — pocket queen, then must cover (pocket another coin same/next turn) or queen returns |
+| Debt model | **Auto-settle** — server settles debts automatically at end of each turn during scoring; no separate `payDebt` event |
 | Player count | **2-player only** — polish before expanding |
-| Rendering | **Raw Canvas2D** — remove Phaser dependency |
+| Rendering | **Raw Canvas2D** — Phaser already removed |
 | Mobile | **Nice to have** — desktop first |
-| Persistence | **In-memory** — no database needed for now |
+| Persistence | **In-memory** — no database |
 
 ---
 
 ## Phase 0 — Critical Bug Fixes
-> Fast, isolated fixes. Do these before anything else.
+> Status verified by codebase audit.
 
-- [x] Fix typo: `room.debs` → `room.debts` in `server/index.js` (~L930, `payDebt` handler)
-- [x] Re-enable all commented-out server-side room validation (`if (!rooms.has(roomName))` blocks)
-- [x] Remove unused `coinsMove` socket listener on server (client never emits it)
-- [ ] Remove `sliderValue`, `sliderMin`, `sliderMax` from `Hand.js` (unused)
-- [x] Remove `phaser` from `client/package.json` dependencies and run `npm install`
-**Estimated effort:** ~1–2 hours
+- [x] Fix typo: `room.debs` → `room.debts` in [server/index.js](server/index.js) `payDebt` handler — verified
+- [x] Re-enable all server-side room validation (`if (!rooms.has(roomName))`) — all 18+ blocks active
+- [x] Remove `coinsMove` socket listener on server — verified absent
+- [x] Remove `phaser` from [client/package.json](client/package.json) — verified absent
+- [x] Remove Lorem ipsum block from [Board.jsx](client/scripts/Board.jsx) style block (was being injected as CSS textContent — invalid)
+- [x] Remove dead client `coinsMove` emits ([Animation.js](client/scripts/Animation.js), [Board.jsx](client/scripts/Board.jsx)) and matching `Events.handleCoinsMove` listener — server never relayed them
+- [~] ~~Remove `sliderValue`, `sliderMin`, `sliderMax` from `Hand.js`~~ — **CANCELLED**: these are NOT unused. They power `sliderToX`/`xToSlider` which sync striker placement between clients ([Hand.js#L785](client/scripts/Hand.js#L785), [Board.jsx#L372](client/scripts/Board.jsx#L372), [Events.js#L469](client/scripts/Events.js#L469)). Original plan was wrong.
+
+**Phase 0 complete.** Note: `Events.handleCoinsMove` function body still exists in [Events.js](client/scripts/Events.js) but is no longer wired up — leave for now, gets deleted with all client physics in Phase 1.
 
 ---
 
 ## Phase 1 — Server-Authoritative Physics
-> The most important architectural change. Fixes the core multiplayer sync problem.
+> **Status: complete and validated end-to-end in browser** (2 clients, full flick → frames → resolve → turn-switch loop verified). The most important architectural change. Fixes the core multiplayer sync problem.
 
 ### Problem
-Both clients independently run physics. Floating-point divergence means coins end up in different positions on each screen — the game is fundamentally broken for multiplayer.
+Both clients independently ran physics in [Animation.js](client/scripts/Animation.js) + [Physics.js](client/scripts/Physics.js). Floating-point divergence + network jitter meant coins ended up in different positions on each screen.
 
-### New Architecture
+### Final Architecture (as shipped)
 
 ```
-Client A                    Server                      Client B
---------                    ------                      --------
-User flicks striker
-→ emit "flick" { angle, force }
-                    Receive flick
-                    Run full physics loop until all objects stop
-                    Compute: pocketed coins, scores, whose turn, queen state
-                    → emit "gameState" { coins, score, turn, pocketed, queenState }
-                    ←────────────────────────────────────────────
-Receive gameState                               Receive gameState
-Render from server state                        Render from server state
+Client A                    Server                            Client B
+--------                    ------                            --------
+User flicks
+→ emit "flick" { roomName, strikerX, angle, force }
+                    Validate room, game-started, sim-not-running, actor-turn
+                    startFlickSimulation(state, input, actor, callbacks):
+                      setInterval @ 16ms (60Hz):
+                        step(state)                    // CCD, friction, pocket detect
+                        every 2nd tick:
+                          → broadcast "physicsFrame" { coins:[{id,x,y}], striker:{x,y}|null }
+                        on pocket:
+                          → broadcast "pocketEvent" { id, color, pocket:{x,y} }
+                        when nothing moves:
+                          resolveTurn() — score, queen FSM, striker foul,
+                                         debt accrue/settle, continue vs switch, win check
+                          placeStrikerForNextTurn()
+                          → broadcast "turnResolved" { ...resolution, state: fullState }
+                          → broadcast "roomUpdate" (mirrors scores/debts/turn)
+Render frames as they arrive                       Render frames as they arrive
+(no local physics)                                 (no local physics)
 ```
 
-### Tasks
+### Implementation
 
-- [ ] **Port physics to server** — copy `Physics.js` logic into `server/physics.js` (pure JS, no DOM/canvas dependencies)
-- [ ] **Server game loop** — after receiving a `flick` event, run physics tick by tick until all velocities are below threshold, collect results
-- [ ] **Define `gameState` payload** — canonical shape:
-  ```js
-  {
-    coins: [{ id, x, y, color, pocketed }],
-    striker: { x, y },
-    turn: "creator" | "joiner",
-    pocketed: [{ id, color, pocketedBy }],
-    scores: { creator: number, joiner: number },
-    debts: { creator: number, joiner: number },
-    queenState: "on_board" | "pocketed_uncovered" | "covered",
-    continuedTurn: boolean,   // true if player pocketed a coin and goes again
-    strikerPocketed: boolean, // triggers penalty
-    gameOver: boolean,
-    winner: null | "creator" | "joiner"
-  }
-  ```
-- [ ] **Client: remove independent physics from flick flow** — on flick, just emit `{ angle, force }` to server, wait for `gameState`
-- [ ] **Client: render from `gameState`** — update all refs from server payload instead of computing locally
-- [ ] **Keep client physics only for local preview** (optional, later) — optimistic rendering can be added in Phase 5 if lag is noticeable
-- [ ] **Remove parallel `strikerAnimation` / `strikerMove` events** — replace with single `gameState` broadcast
+**[server/physics.js](server/physics.js)** (~500 lines, ESM, pure module — no DOM, no socket, no logging):
+- Geometry / coin / striker / pocket constants mirror client `Draw.js`, `Coin.js`, `Striker.js`, `Pocket.js`, `Hand.js` (`FLICK_POWER = 0.4`, `MAX_VELOCITY_FROM_FLICK = 40`).
+- Exports: `createInitialState`, `startFlickSimulation`, `fullStateSnapshot`, `frameSnapshot`, `clampStrikerX`, `baselineYFor`, plus geometry constants.
+- `step(state)` — one 16ms tick: CCD per object (`updateWithCCD` w/ sub-stepping by speed), friction, threshold-stop, overlap cleanup, pocket detection. Returns newly-pocketed coins.
+- `resolveTurn(state, pocketedThisTurn, actor)` — full carrom rules:
+  - Score by coin color (white→creator, black→joiner, red→queen FSM).
+  - Queen FSM: `on_board` → `pocketed_uncovered` → `covered` (own-color same flick OR cover-turn) / back to `on_board` (failed cover or foul).
+  - Striker foul: refund last coin from actor's pocketed-pile to center (or `debt += 1` if pile empty); auto-settle debt against score (`min(score, debt)` subtracted from both).
+  - Continue-turn cap: `MAX_TURNS_IN_A_ROW = 3`.
+  - Game-over check.
+- `respawnAtCenter` jiggles outward in a spiral if center is blocked.
 
-**Estimated effort:** 3–5 hours
+**[server/index.js](server/index.js)** (cut from 1223 → ~700 lines):
+- Imports `createInitialState`, `fullStateSnapshot`, `startFlickSimulation` from `./physics.js`.
+- Helpers: `createRoom`, `startGame` (broadcasts `gameInit`), `syncRoomFromGame`, `broadcastRoomUpdate`.
+- `joinRoom` triggers `startGame` after the second player joins.
+- `requestRoomData` re-sends `gameInit` if a game is in progress (reconnects).
+- `flick` handler: validates `actor === room.game.whoseTurn` using **persistent `clientId` from handshake query** (NOT `socket.id` — earlier bug fixed), runs `startFlickSimulation`, wires `onFrame`/`onPocket`/`onDone` to broadcasts.
+- `gameReset` re-deals.
+- `strikerSliderUpdate` is relay-only (placement preview).
+
+**Client [Hand.js](client/scripts/Hand.js)** — `_emitFlick({strikerRef, socket, roomName})`:
+- `dx = startX - endX, dy = startY - endY`
+- `force = min(distance / flickMaxLength, 1)`, `angle = atan2(dy, dx)`
+- Emits `socket.emit("flick", {roomName, strikerX, angle, force})`.
+- No local velocity assignment; no `onAnimationStart`; `handleFlickMouseUp` and `handleMouseUp` simplified.
+
+**Client [Board.jsx](client/scripts/Board.jsx)** — pure renderer, 4 server-driven listeners:
+- `gameInit` → `applyServerCoins` rebuilds `coinsRef` from snapshot, syncs striker, resets pocketed sets.
+- `physicsFrame` → in-place coin position update by id, striker update (or hide if mid-flick pocketed), `isAnimating = true`, redraw.
+- `pocketEvent` → filter coin from `coinsRef`, append to `pocketedThisTurnRef`.
+- `turnResolved` → re-apply full state (coins, striker, scores via `roomUpdate`, turn), reset `isAnimating`, sync slider preview to server-chosen baseline.
+- `strikerSliderUpdate` relay listener kept for placement preview.
+- Removed: animation loop useEffect, all old `strikerMove`/`strikerAnimation`/`strikerFlicked`/`coinsPocketed`/`turnSwitched`/`turnContinued`/`debtPaid`/`queen*`/`coverTurnUpdate`/`movementStop*` listeners and the 16ms collision-check interval.
+
+### Socket Event Contract (final, documented in [server/index.js](server/index.js#L13-L40))
+
+Gameplay (C→S):
+- `flick` — `{ roomName, strikerX, angle, force }` — `strikerX` clamped server-side; `angle` in radians; `force` ∈ [0, 1].
+- `strikerSliderUpdate` — `{ roomName, playerRole, sliderValue, strikerX }` — placement preview, relayed as-is.
+- `gameReset` — `{ roomName }` — re-deal request.
+
+Gameplay (S→C):
+- `gameInit` — full state snapshot (sent on join / reset / start).
+- `physicsFrame` — `{ coins:[{id,x,y}], striker:{x,y}|null }` — broadcast every 2nd 16ms tick (~30Hz).
+- `pocketEvent` — `{ id, color, pocket:{x,y} }` — one per pocket.
+- `turnResolved` — `{ ...resolution, state: fullState }` where `resolution = { strikerPocketed, pocketedThisTurn, continuedTurn, gameOver, winner }`.
+- `strikerSliderUpdate` — relayed unchanged.
+- `roomUpdate` — mirrors scores/debts/turn via the existing channel for `Manager.js`.
+
+### Bug Fixes During Validation
+- **Actor mismatch**: `flick` handler was comparing `socket.id` (per-connection id) against `room.creator.clientId` (persistent UUID). Fixed to compare against the persistent `clientId` from `socket.handshake.query`. Symptom: server emitted `"Not your turn"` on every flick → client `Room.jsx` error-listener kicked the player out.
+- **`frameLogCount` ReferenceError**: instrumentation `let` was scoped to the `physicsFrame` useEffect but read from the `turnResolved` useEffect. Removed the cross-effect reset. Symptom: `turnResolved` handler aborted mid-execution → striker never re-synced, `isAnimating` stuck true, both clients eventually disconnected.
+
+### Diagnostic Logging (kept in for now)
+- Server `[flick]` logs: incoming payload, resolved actor vs `whoseTurn`, every `pocketEvent`, and a `done` summary.
+- Client `[flick] emit ->` in `Hand._emitFlick`.
+- Client `[net]` logs in `Board.jsx` for `gameInit`, throttled `physicsFrame` (#0/#1/#2 then every 15th), `pocketEvent`, `turnResolved`.
+- Client `[net] server error — leaving room:` and `[net] roomClosed:` in `Room.jsx`.
+
+### Deferred to Phase 1.1 / Phase 2
+- [x] Strip diagnostic `console.log`s once Phase 2 is also stable. *(done in Phase 2 cleanup pass)*
+- [ ] Bandwidth check — frame is ~20 coin records × `{id,x,y}` + striker; never measured.
+- [ ] Pocket animation (currently coin just disappears on `pocketEvent`).
+- [ ] Striker visibility during mid-flick pocket (server sends `striker: null` in those frames; client hides — confirm UX is acceptable).
+- [ ] Cross-player debt auto-settle: today only the *actor's* debt is settled at end of turn. If P2 has debt and P1 pockets P2's coin (P2 is the actor's opponent), P2's debt is not auto-applied to that scoring event. Confirm this is the intended rule before Phase 2.
 
 ---
 
 ## Phase 2 — Game Flow Correctness
-> Fix game rules and turn logic so the game plays correctly end-to-end.
+> Server owns all rules. Client only displays.
 
-### Turn Race Condition Fix
-- [ ] Remove `movementStopConfirmed` client-to-client pattern — server is now authority, so this is obsolete after Phase 1
-- [ ] Server emits `gameState` only after physics fully resolves — no need for confirmation handshake
+### Status: server-side rules already shipped in Phase 1 (`server/physics.js`). Phase 2 executed as a **client cleanup pass** — client now actually *only* displays.
 
-### Queen Mechanics (Standard Rules)
-State machine for queen:
-```
-on_board → [player pockets queen] → pocketed_uncovered
-pocketed_uncovered → [player pockets another coin same turn] → covered (queen stays pocketed, +5 pts)
-pocketed_uncovered → [turn ends without covering] → on_board (queen respawns at center, no points)
-```
-- [ ] Track `queenState` on server (not client)
-- [ ] On pocket event: if queen pocketed, set `queenState = "pocketed_uncovered"`, flag turn as "must cover"
-- [ ] If another coin pocketed in same turn while `pocketed_uncovered` → set `queenState = "covered"`, award queen points
-- [ ] If turn ends while `pocketed_uncovered` → reset queen to center, set `queenState = "on_board"`, no points awarded
-- [ ] Remove `hasPocketedQueen` / `hasCoveredQueen` from client `Player.js` — server owns this state
+### Cleanup pass (executed)
+- [x] Deleted dead client modules: `Physics.js`, `Animation.js`, `Player.js`.
+- [x] Reduced `Coin.js` / `Striker.js` to render-only data + `draw()` (no `update`, no `handleBorderCollision`, no pocket animation methods).
+- [x] Reduced `Pocket.js` to the `POCKET_DIAMETER` constant.
+- [x] Reduced `Events.js` to just `handleStrikerSliderUpdate` (the only relay listener still wired).
+- [x] Reduced `Manager.js` to a thin `playerData` container (no `switchTurn`, `payDebt`, `canPayDebt`, `updateScore`, `updateDebt`, `resetGame` — server is sole authority via `roomUpdate` / `turnResolved`).
+- [x] Replaced `Board.jsx`'s `animationRef` + `animationState` with a plain `useState(false)` `isAnimating` flag.
+- [x] Stripped Phase 1 diagnostic `[flick]` / `[net]` `console.log`s from server `flick` handler, `Hand._emitFlick`, and the four Board.jsx server-listener `useEffect`s. Kept the `[net] roomClosed` / `[net] server error` warnings in `Room.jsx`.
+- [x] Validated with `vite build` (73 modules, 237 kB, no errors).
 
-### Debt System (Server as Single Source of Truth)
-- [ ] Remove debt calculation from client `Manager.js` — server is authority
-- [ ] Server computes debt changes after each turn, sends via `gameState`
-- [ ] Client only displays, never calculates debt
-- [ ] Define debt rules clearly in server code comments:
-  - Striker pocketed: opponent gets +1 coin from your pocketed pile (or debt if pile empty)
-  - Opponent's coin pocketed: goes back on board, no direct debt
-  - Last opponent coin pocketed: 3-point penalty
+### Original Phase 2 server-rule items (already done in Phase 1)
+- [x] Turn race condition fix: `movementStopConfirmed` handshake removed; turn comes from server `turnResolved.state.whoseTurn`.
+- [x] Queen FSM (`on_board` → `pocketed_uncovered` → `covered` / `on_board`) lives in `server/physics.js` `resolveTurn`.
+- [x] Debt auto-settle in `resolveTurn` (no `payDebt` event).
+- [x] Striker foul: refund last pocketed coin to center (or accrue debt if pile empty), handled server-side.
 
-### Striker Penalty / Coin Respawn
-- [ ] On `strikerPocketed: true` in gameState: client animates striker going into pocket
-- [ ] Server: if player has pocketed coins, return one to center; else increment debt
-- [ ] Wire respawn animation in `Pocket.js`
-
-**Estimated effort:** 3–4 hours
+### Still open (intentionally deferred out of Phase 2)
+- [ ] **Pocket animation** — currently coin just disappears on `pocketEvent`. Server emits `pocketEvent { id, color, pocket:{x,y} }` so the client has all data to play a shrink/fade-into-pocket tween before removing the coin from `coinsRef`.
+- [ ] **Cross-player debt auto-settle** — confirm intended rule before implementing.
+- [ ] **`Room.jsx` GameInfoTable** still reads `isCoverTurn` / `hasPocketedQueen` / `hasCoveredQueen` from `Manager.playerData`; `Manager` no longer carries those fields and the server doesn't broadcast them, so those cells render "No" forever. If the table matters, surface queen state from `turnResolved.state.queen` instead.
 
 ---
 
 ## Phase 3 — Code Cleanup & Refactor
-> Make the codebase maintainable before adding more features.
 
-### Board.jsx (600+ lines → split into focused modules)
-- [ ] Extract `useGameCanvas()` hook — canvas setup, context, scaling, pocket array
-- [ ] Extract `useGameSocket()` hook — all socket event listeners and emitters
-- [ ] `Board.jsx` becomes a thin coordinator that uses these hooks
-- [ ] Target: Board.jsx under 200 lines
+### Board.jsx (currently **751 lines** → target ~200)
+- [ ] Extract `useGameCanvas()` — canvas setup, scaling, pocket array
+- [ ] Extract `useGameSocket()` — all `socket.on` listeners (currently 40+ `useEffect`s)
+- [ ] Extract `useGameInput()` — mouse + touch handlers
+- [ ] Move the 170-line inline `<style>` block to a CSS file (`Board.css`)
 
 ### Naming & Clarity
 - [ ] Rename `handRef` → `handManagerRef`
-- [ ] Rename `animationRef` → `gameLoopRef`
+- [ ] Rename `animationRef` → `gameLoopRef` (or delete after Phase 1 if no longer needed)
 - [ ] Rename `continuedTurnsRef` → `turnsInARowRef`
 
 ### Socket Event Audit
-- [ ] List every `socket.on` and `socket.emit` across client and server
+- [ ] After Phase 1+2, list every remaining `socket.on`/`socket.emit`
 - [ ] Remove any with no corresponding sender/receiver
-- [ ] Document remaining events in a comment block at top of `server/index.js`
+- [ ] Document event contract in a comment block at top of [server/index.js](server/index.js)
 
 ### Dead Code Removal
-- [ ] Remove commented-out blocks in `Animation.js`
-- [ ] Remove Lorem Ipsum placeholder in `Board.jsx`
-- [ ] Remove inline debug console.logs
-
-**Estimated effort:** 3–4 hours
+- [ ] Remove commented-out `switchTurn`/`continueTurn` blocks at end of [server/index.js](server/index.js) (~L1107–L1142)
+- [ ] Delete unused `Events.handleCoinsMove` function body (left over from Phase 0)
+- [ ] Remove inline debug `console.log`s
+- [ ] Strip [Manager.js](client/scripts/Manager.js) and [Player.js](client/scripts/Player.js) of fields the server now owns
 
 ---
 
 ## Phase 4 — UI/UX Polish
-> Make the game feel complete and readable.
 
-- [ ] **Turn indicator** — clear visual showing whose turn it is (not just a text label, highlight the active player's side)
-- [ ] **Pocketed coin tally** — show count of pocketed white/black/queen per player
-- [ ] **Score display** — current score, debt owed, max score to win
-- [ ] **Game over screen** — winner announcement, final scores, "play again" button
-- [ ] **Error boundary** — catch canvas errors, show "Something went wrong — refresh" UI
-- [ ] **Socket disconnect UI** — show "Opponent disconnected" overlay, option to wait or exit
-- [ ] **Room state on join** — if player joins a room mid-game, show waiting screen rather than broken board
-
-**Estimated effort:** 3–5 hours
+- [ ] **Turn indicator** — highlight active player's side, not just text
+- [ ] **Pocketed pile display** — show counts of pocketed white/black/queen per player
+- [ ] **Score / debt / target** — current score, debt owed, max score to win
+- [ ] **Game over screen** — winner, final scores, "play again" button
+- [ ] **Error boundary** — catch canvas errors, show "Something went wrong — refresh"
+- [ ] **Disconnect UI** — "Opponent disconnected" overlay with wait/exit options
+- [ ] **Mid-game join** — if a player joins a room mid-game, show waiting screen rather than broken board
 
 ---
 
 ## Phase 5 — Mobile Support *(Nice to Have)*
-> Desktop is primary, but touch should work.
 
-- [ ] Replace invisible slider with a visible arc-based power selector on mobile
-- [ ] Add `touchstart` / `touchmove` / `touchend` handlers to flick mechanic
-- [ ] Test on iOS Safari and Android Chrome
-- [ ] Lock to landscape orientation or adapt layout for portrait
-- [ ] Increase tap target sizes for room join buttons
-
-**Estimated effort:** 3–4 hours
+- [ ] Replace invisible slider with visible arc-based power selector on mobile
+- [ ] Add `touchstart`/`touchmove`/`touchend` handlers to flick mechanic
+- [ ] Test iOS Safari + Android Chrome
+- [ ] Lock landscape or adapt portrait layout
+- [ ] Increase tap target sizes
 
 ---
 
 ## Backlog / Not Planned
 - 4-player mode
 - Phaser migration
-- Database / game state persistence
+- Database / persistence
 - AI opponent
 - Leaderboard / accounts
-- Sound effects (can revisit after Phase 4)
+- Sound effects (revisit after Phase 4)
 - Talc powder particle effects
 
 ---
 
-## Suggested Order of Work
-
-```
-Phase 0  →  Phase 1  →  Phase 2  →  Phase 3  →  Phase 4  →  Phase 5 (optional)
-~2h          ~5h          ~4h          ~4h          ~5h          ~4h
-```
-
-Total estimated: ~20–24 hours of focused work to reach a polished, correct 2-player game.
+## Open Questions / To Decide Later
+- **Frame format**: send full coin array each frame, or only moving coins? Decide after measuring bandwidth in Phase 1
+- **Disconnect mid-flick**: if a client drops while server is simulating, do we pause or finish the turn? (Probably: finish turn, queue `turnResolved` for reconnect)
+- **Determinism**: do we need the server sim to be deterministic for replays? (Probably no for now)

@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Coin from "./Coin";
-import Physics from "./Physics";
 import Draw from "./Draw";
 import Hand from "./Hand";
-import Animation from "./Animation";
 import * as Events from "./Events";
 
 // a custom hook for responsive scaling
@@ -76,25 +74,6 @@ function GameCanvas({isMyTurn = true, socket, playerRole, roomName, manager, onL
     useEffect(() => {
         const style = document.createElement('style');
         style.textContent = `
-            <div style={{
-                width: '900px',
-                padding: '20px',
-                backgroundColor: 'white',
-                border: '2px solid black',
-                fontFamily: 'Helvetica, Arial, sans-serif',
-                fontSize: '16px',
-                position: 'absolute',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                pointerEvents: 'none',
-                zIndex: 2
-            }}>
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-                Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
-                Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris
-                nisi ut aliquip ex ea commodo consequat.
-            </div>
-
             input[type="range"]::-webkit-slider-thumb {
                 -webkit-appearance: none;
                 appearance: none;
@@ -219,16 +198,17 @@ function GameCanvas({isMyTurn = true, socket, playerRole, roomName, manager, onL
 
     const canvasRef = useRef(null);
     const strikerRef = useRef(null);
-    const continuedTurnsRef = useRef(0);
     const debtRef = useRef(0);
     const handRef = useRef(new Hand());
     const [handState, setHandState] = useState(handRef.current.getState());
-    const animationRef = useRef(new Animation());
-    const [animationState, setAnimationState] = useState(animationRef.current.getState());
+    const [isAnimating, setIsAnimating] = useState(false);
     const [isStrikerColliding, setIsStrikerColliding] = useState(false);
     const [coins, setCoins] = useState([]);
     const coinsRef = useRef([]);
-    const pocketedCoinsRef = useRef(new Set());
+    // Coins currently playing the shrink-into-pocket tween. Lives outside
+    // coinsRef so it survives applyServerCoins() rebuilds on turnResolved.
+    const pocketingCoinsRef = useRef([]);
+    const pocketAnimRafRef = useRef(null);
     const pocketedThisTurnRef = useRef([]);
     const initialCoinCountsRef = useRef({ white: 0, black: 0, red: 0 });
 
@@ -246,134 +226,42 @@ function GameCanvas({isMyTurn = true, socket, playerRole, roomName, manager, onL
 
     useEffect(() => {
 
-        // if (!canvasRef.current) return;
-
-        const boardX = (canvasRef.current.width - Draw.BOARD_SIZE) / 2;
-        const boardY = (canvasRef.current.height - Draw.BOARD_SIZE) / 2;
-        const centerX = boardX + Draw.BOARD_SIZE / 2;
-        const centerY = boardY + Draw.BOARD_SIZE / 2;
-        const coins = Coin.createCoinFormation(centerX, centerY);
-
-        coinsRef.current = coins;
-        setCoins(coins);
-
-        const allCoins = coins;
-        initialCoinCountsRef.current = {
-            white: allCoins.filter((coin) => coin.color === "white").length,
-            black: allCoins.filter((coin) => coin.color === "black").length,
-            red: allCoins.filter((coin) => coin.color === "red").length,
-        };
-        
-        // what is a callback?
-        // a callback is a function that gets passed as an argument to another function
-        // i guess in this case we are passing multiple functions like on state changed etc. 
-        // into set call backs
-        // and these functions will get executed at a later time. what later time? 
-        // how does the code know when the on state change or on striker move actually happens?
-        // on state change, i assume if the state of hand ref changes, set the hand state to the new state
-        // if striker moves, send a striker move event to the server, with data, what is in data?
-        // i beleive its room name, player role, new x, y of striker
-        // do the same for collision updates
-        // this is too much right? like either server does all the calcualtions and relays to clients,
-        // or both clients do the cxaluclations and reconcile the state through the server
-        // on animation start, set abunatuoin ref to have its animaintg bool set to true
-        // on redraw, have collision state as data
-        // ctx is the canvas context, which is used to draw on the canvas
-        // set an object called current game state
-        // the variables inside these seem pretty random! why have we chosen these?
-        // we are supposedly using the current hand ref to avoid react state timing issues, no clue what that means
-        // draw board with the context, current game state, player role?, collision state? why the last two?
-        // if slider changes, send an event to server with data what is the data??
-        // i believe its room name, player role, slider value which is sldier's x, and striker x position 
+        // Coins are now seeded from the server's `gameInit` event \u2014 see the
+        // dedicated useEffect below. We start with an empty board; the first
+        // gameInit/turnResolved snapshot will populate coinsRef and trigger a
+        // redraw. Striker is auto-instantiated on first draw by Draw.drawBoard.
+        coinsRef.current = [];
+        setCoins([]);
 
         handRef.current.setCallbacks({
             onStateChange: (newState) => setHandState(newState),
-            onStrikerMove: (data) => {
+            // No local physics anymore \u2014 striker positions come from the server
+            // via physicsFrame events; we only need to broadcast the slider
+            // preview and trigger redraws when the flick line changes.
+            onAnimationStart: () => setIsAnimating(true),
+            onRedraw: (collisionState) => {
+                const ctx = canvasRef.current?.getContext("2d");
+                if (ctx) {
+                    Draw.drawBoard(
+                        ctx,
+                        createGameState(),
+                        playerRole,
+                        collisionState,
+                    );
+                }
+            },
+            onSliderChange: (data) => {
                 if (socket && roomName) {
-                    socket.emit("strikerMove", {
+                    socket.emit("strikerSliderUpdate", {
                         roomName,
+                        playerRole,
                         ...data,
                     });
                 }
             },
-            
-            onCollisionUpdate: (isColliding) => {
-                setIsStrikerColliding(isColliding);
-                if (socket && roomName) {
-                    socket.emit("strikerCollisionUpdate", {
-                        roomName,
-                        playerRole,
-                        isColliding,
-                    });
-                }
-            },
-
-            onAnimationStart: () =>
-                animationRef.current.updateState({ isAnimating: true }),
-                onRedraw: (collisionState) => {
-                    const ctx = canvasRef.current?.getContext("2d");
-                    if (ctx) {
-                        const currentGameState = {
-                            strikerRef,
-                            coinsRef,
-                            isStrikerColliding,
-                            isFlickerActive: handRef.current.isFlickerActive,
-                            flick: handRef.current.flick,
-                            flickMaxLength: handRef.current.flickMaxLength,
-                        };
-                        Draw.drawBoard(
-                            ctx,
-                            currentGameState,
-                            playerRole,
-                            collisionState,
-                        );
-                    }
-                },
-
-                onSliderChange: (data) => {
-                    if (socket && roomName) {
-                        socket.emit("strikerSliderUpdate", {
-                            roomName,
-                            playerRole,
-                            ...data,
-                        });
-                    }
-                },
-            }
-        );
-
-        // set slider boundaries
-        // we had previosulsy set callcback for hand refernce
-        // now we are setting callpacks for animation refernce
-        // what does it even means for animation reference to be set to is animating as a callback
-        // the line is giving animation.js a way to tell react when animation starts or stops,
-        // while preserving other animation state properties 
-        // its a callback function that takes boolean parameters and updates only the is animating property
-        // in the animation state while keeping other properties unchanged
-        // set hand state updates hand reference's current state to its new state
-        // create a game state called here as a callback, it is defined below, again,
-        // why have we chosen these particular values as game state?
-        // on striker reset, slider is reset to center, hand state is updated
+        });
 
         handRef.current.calculateSliderBoundaries(canvasRef);
-
-        animationRef.current.setCallbacks({
-
-            setIsAnimating: (isAnimating) => setAnimationState((prev) => ({ ...prev, isAnimating })),
-
-            setHandState: (newState) => {
-                handRef.current._updateState(newState);
-                setHandState(handRef.current.getState());
-            },
-
-            createGameState: () => createGameState(),
-            
-            onStrikerReset: (newX) => {
-                const newSliderValue = handRef.current.xToSlider(newX, playerRole);
-                handRef.current.sliderValue = newSliderValue;
-                setHandState(handRef.current.getState());
-            },
-        });
 
     }, []);
 
@@ -432,6 +320,7 @@ function GameCanvas({isMyTurn = true, socket, playerRole, roomName, manager, onL
     const createGameState = () => ({
         strikerRef,
         coinsRef,
+        pocketingCoinsRef,
         isStrikerColliding,
         isFlickerActive: handState.isFlickerActive,
         flick: handState.flick,
@@ -446,12 +335,14 @@ function GameCanvas({isMyTurn = true, socket, playerRole, roomName, manager, onL
 
     const handleMouseDown = (e) => {
         handRef.current.handleMouseDown(e, {
-            isAnimating: animationState.isAnimating,
+            isAnimating,
             isMyTurn,
             strikerRef,
             canvasRef,
             playerRole,
             isStrikerColliding,
+            socket,
+            roomName,
         });
     };
 
@@ -469,6 +360,9 @@ function GameCanvas({isMyTurn = true, socket, playerRole, roomName, manager, onL
             isMyTurn,
             strikerRef,
             isStrikerColliding,
+            socket,
+            roomName,
+            playerRole,
         });
     };
     
@@ -555,67 +449,231 @@ function GameCanvas({isMyTurn = true, socket, playerRole, roomName, manager, onL
             handRef.current.handleFlickMouseUp(mouseEvent, {
                 isMyTurn,
                 strikerRef,
-                isStrikerColliding
+                isStrikerColliding,
+                socket,
+                roomName,
             });
         }
     };
 
-    // animation loop for striker and coin movement
-    useEffect(() => {
-        
-        // animation should run if it's my turn OR there are pocketing animations happening
-        const shouldAnimate = animationState.isAnimating &&
-            (isMyTurn || animationRef.current.beingPocketedCoinsRef.length > 0 || animationRef.current.beingPocketedStrikerRef !== null);
+    // ========================================================================
+    // SERVER-AUTHORITATIVE PHYSICS LISTENERS
+    // ========================================================================
+    // The local physics loop has been removed. Instead, we listen for:
+    //   gameInit      \u2014 full initial coin layout (start / reset / late join)
+    //   physicsFrame  \u2014 ~30Hz position updates during a flick
+    //   pocketEvent   \u2014 a coin (or striker) was pocketed
+    //   turnResolved  \u2014 flick finished; final state, scores, debts, turn
+    // ========================================================================
 
-        if (shouldAnimate) {
-            const params = { strikerRef, isMyTurn, canvasRef, coinsRef,
-                setCoins, socket, roomName, playerRole, manager, continuedTurnsRef,
-                debtRef, pocketedThisTurnRef, pocketedCoinsRef,
+    // Helper: rebuild local Coin objects from a server snapshot.
+    const applyServerCoins = (serverCoins) => {
+        const next = serverCoins
+            .filter((c) => !c.pocketed)
+            .map((c) => new Coin({ id: c.id, color: c.color, x: c.x, y: c.y }));
+        coinsRef.current = next;
+        setCoins(next);
+        // Track initial counts so future game-end logic can reference them.
+        if (initialCoinCountsRef.current.white === 0 &&
+            initialCoinCountsRef.current.black === 0) {
+            initialCoinCountsRef.current = {
+                white: serverCoins.filter((c) => c.color === "white").length,
+                black: serverCoins.filter((c) => c.color === "black").length,
+                red: serverCoins.filter((c) => c.color === "red").length,
             };
+        }
+    };
 
-            animationRef.current.startAnimation(params);
+    const redrawCanvas = () => {
+        const ctx = canvasRef.current?.getContext("2d");
+        if (ctx) Draw.drawBoard(ctx, createGameState(), playerRole);
+    };
+
+    // Pending striker re-placement to apply once the pocket tween finishes.
+    // turnResolved typically arrives within ~16ms of a striker pocket, so we
+    // can't snap-to-baseline immediately or the 250ms shrink-into-pocket
+    // animation gets cut off.
+    const pendingStrikerSyncRef = useRef(null);
+
+    // Drives the pocket-drop tween while any coins (or the striker) are still
+    // animating in. Stops itself once nothing is animating.
+    const tickPocketAnim = () => {
+        const now = performance.now();
+        pocketingCoinsRef.current = pocketingCoinsRef.current.filter(
+            (c) => c.pocketProgress(now) < 1,
+        );
+        const striker = strikerRef.current;
+        const strikerStillAnimating =
+            striker && striker.beingPocketed && striker.pocketProgress(now) < 1;
+
+        // Apply any deferred striker re-placement once the tween completes.
+        if (striker && striker.beingPocketed && !strikerStillAnimating) {
+            striker.resetPocketAnim();
+            const pending = pendingStrikerSyncRef.current;
+            if (pending) {
+                striker.x = pending.x;
+                striker.y = pending.y;
+                striker.velocity = { x: 0, y: 0 };
+                striker.isStrikerMoving = false;
+                pendingStrikerSyncRef.current = null;
+            }
         }
 
-        return () => {
-            animationRef.current.stopAnimation();
-        };
+        redrawCanvas();
+        if (pocketingCoinsRef.current.length > 0 || strikerStillAnimating) {
+            pocketAnimRafRef.current = requestAnimationFrame(tickPocketAnim);
+        } else {
+            pocketAnimRafRef.current = null;
+        }
+    };
 
-    }, [animationState.isAnimating, socket, roomName, isMyTurn]);
-    
-    // listen for striker moves from other player
+    const startPocketAnimLoop = () => {
+        if (pocketAnimRafRef.current == null) {
+            pocketAnimRafRef.current = requestAnimationFrame(tickPocketAnim);
+        }
+    };
+
+    // Initial state + reset listener
     useEffect(() => {
         if (!socket || !roomName) return;
 
-        const handleStrikerMove = (data) => {
-            Events.handleStrikerMove(data, {
-                roomName,
-                strikerRef,
-                canvasRef,
-                playerRole,
-                createGameState,
-            });
+        const handleGameInit = (state) => {
+            applyServerCoins(state.coins);
+            if (strikerRef.current) {
+                strikerRef.current.resetPocketAnim();
+                strikerRef.current.x = state.striker.x;
+                strikerRef.current.y = state.striker.y;
+                strikerRef.current.velocity = { x: 0, y: 0 };
+                strikerRef.current.isStrikerMoving = false;
+            }
+            pocketingCoinsRef.current = [];
+            pocketedThisTurnRef.current = [];
+            redrawCanvas();
         };
 
-        const handleStrikerCollisionUpdate = (data) => {
-            Events.handleStrikerCollisionUpdate(data, {
-                roomName,
-                setIsStrikerColliding,
-                canvasRef,
-                playerRole,
-                createGameState,
-            });
+        socket.on("gameInit", handleGameInit);
+        return () => socket.off("gameInit", handleGameInit);
+    }, [socket, roomName, playerRole]);
+
+    // Streaming position updates during a flick (~30Hz)
+    useEffect(() => {
+        if (!socket || !roomName) return;
+
+        const handlePhysicsFrame = (frame) => {
+            // Update coin positions in place by id.
+            const byId = new Map(coinsRef.current.map((c) => [c.id, c]));
+            for (const c of frame.coins) {
+                const local = byId.get(c.id);
+                if (local) { local.x = c.x; local.y = c.y; }
+            }
+            if (strikerRef.current) {
+                if (frame.striker) {
+                    // Don't override position mid-tween (server already sent the
+                    // striker pocket event with the snapshot).
+                    if (!strikerRef.current.beingPocketed) {
+                        strikerRef.current.x = frame.striker.x;
+                        strikerRef.current.y = frame.striker.y;
+                    }
+                    strikerRef.current.isStrikerMoving = true;
+                } else {
+                    // Striker was pocketed mid-flick.
+                    strikerRef.current.isStrikerMoving = false;
+                }
+            }
+            // Mark animating so cursor / input gates behave correctly.
+            if (!isAnimating) setIsAnimating(true);
+            redrawCanvas();
         };
-        
-        const handleStrikerAnimation = (data) => {
-            Events.handleStrikerAnimation(data, {
-                roomName,
-                strikerRef,
-                animationRef,
-                canvasRef,
-                playerRole,
-                createGameState,
-            });
+
+        socket.on("physicsFrame", handlePhysicsFrame);
+        return () => socket.off("physicsFrame", handlePhysicsFrame);
+    }, [socket, roomName, playerRole]);
+
+    // Per-pocket event \u2014 remove the coin from the local list immediately so the
+    // next physicsFrame doesn't try to update a coin that no longer exists.
+    useEffect(() => {
+        if (!socket || !roomName) return;
+
+        const handlePocketEvent = (p) => {
+            if (p.kind === "striker") {
+                const striker = strikerRef.current;
+                if (striker && p.pocket && p.from) {
+                    striker.startPocketAnim(p.from.x, p.from.y, p.pocket.x, p.pocket.y);
+                    striker.isStrikerMoving = false;
+                    startPocketAnimLoop();
+                }
+                pocketedThisTurnRef.current.push(p);
+                return;
+            }
+            const idx = coinsRef.current.findIndex((c) => c.id === p.id);
+            if (idx !== -1) {
+                const coin = coinsRef.current[idx];
+                if (p.pocket) {
+                    coin.startPocketAnim(p.pocket.x, p.pocket.y);
+                    pocketingCoinsRef.current.push(coin);
+                    startPocketAnimLoop();
+                }
+                coinsRef.current = [
+                    ...coinsRef.current.slice(0, idx),
+                    ...coinsRef.current.slice(idx + 1),
+                ];
+                setCoins(coinsRef.current);
+            }
+            pocketedThisTurnRef.current.push(p);
         };
+
+        socket.on("pocketEvent", handlePocketEvent);
+        return () => socket.off("pocketEvent", handlePocketEvent);
+    }, [socket, roomName]);
+
+    // Turn resolution \u2014 server tells us the flick is fully settled and gives
+    // us the authoritative full state (scores, debts, turn, queen, striker
+    // placement). We sync local state and end the animating gate.
+    useEffect(() => {
+        if (!socket || !roomName) return;
+
+        const handleTurnResolved = (payload) => {
+            const state = payload.state;
+            applyServerCoins(state.coins);
+            const striker = strikerRef.current;
+            if (striker) {
+                if (striker.beingPocketed) {
+                    // Defer the snap-to-baseline until the pocket tween
+                    // finishes (handled in tickPocketAnim).
+                    pendingStrikerSyncRef.current = {
+                        x: state.striker.x,
+                        y: state.striker.y,
+                    };
+                } else {
+                    striker.resetPocketAnim();
+                    striker.x = state.striker.x;
+                    striker.y = state.striker.y;
+                    striker.velocity = { x: 0, y: 0 };
+                    striker.isStrikerMoving = false;
+                }
+            }
+            // Sync slider preview so the local player sees their striker at
+            // the server-chosen baseline.
+            const newSliderValue = handRef.current.xToSlider(
+                state.striker.x,
+                playerRole,
+            );
+            handRef.current.sliderValue = newSliderValue;
+            setHandState(handRef.current.getState());
+
+            pocketedThisTurnRef.current = [];
+
+            setIsAnimating(false);
+            redrawCanvas();
+        };
+
+        socket.on("turnResolved", handleTurnResolved);
+        return () => socket.off("turnResolved", handleTurnResolved);
+    }, [socket, roomName, playerRole]);
+
+    // Relay-only: peer's slider preview position.
+    useEffect(() => {
+        if (!socket || !roomName) return;
 
         const handleStrikerSliderUpdate = (data) => {
             Events.handleStrikerSliderUpdate(data, {
@@ -629,250 +687,9 @@ function GameCanvas({isMyTurn = true, socket, playerRole, roomName, manager, onL
             });
         };
 
-        socket.on("strikerMove", handleStrikerMove);
-        socket.on("strikerCollisionUpdate", handleStrikerCollisionUpdate);
-        socket.on("strikerAnimation", handleStrikerAnimation);
         socket.on("strikerSliderUpdate", handleStrikerSliderUpdate);
-
-        return () => {
-            socket.off("strikerMove", handleStrikerMove);
-            socket.off("strikerCollisionUpdate", handleStrikerCollisionUpdate);
-            socket.off("strikerAnimation", handleStrikerAnimation);
-            socket.off("strikerSliderUpdate", handleStrikerSliderUpdate);
-        };
+        return () => socket.off("strikerSliderUpdate", handleStrikerSliderUpdate);
     }, [socket, roomName]);
-    
-    // listen for turn switch and reset striker position
-    useEffect(() => {
-        if (!socket || !roomName) return;
-
-        const handleTurnSwitched = (data) => {
-            Events.handleTurnSwitched(data, {
-                roomName,
-                strikerRef,
-                coinsRef,
-                animationRef,
-                canvasRef,
-                playerRole,
-                continuedTurnsRef,
-                pocketedThisTurnRef,
-            });
-        };
-
-        socket.on("turnSwitched", handleTurnSwitched);
-
-        return () => {
-            socket.off("turnSwitched", handleTurnSwitched);
-        };
-
-    }, [socket, roomName, playerRole]);
-
-    // listen for turn continuation and reset striker position
-    useEffect(() => {
-        if (!socket || !roomName) return;
-
-        const handleTurnContinued = (data) => {
-            Events.handleTurnContinued(data, {
-                roomName,
-                strikerRef,
-                coinsRef,
-                animationRef,
-                canvasRef,
-                playerRole,
-                continuedTurnsRef,
-                pocketedThisTurnRef,
-            });
-        };
-
-        socket.on("turnContinued", handleTurnContinued);
-        return () => socket.off("turnContinued", handleTurnContinued);
-    }, [socket, roomName, playerRole]);
-
-    // striker movement sync, sync coin positions to other player
-    // emit coin positions whenever coins move (animation frame)
-    useEffect(() => {
-        if (!socket || !roomName) return;
-        if (animationState.isAnimating) {
-            const coinStates = coinsRef.current.map((coin) => ({
-                id: coin.id,
-                x: coin.x,
-                y: coin.y,
-                velocity: { ...coin.velocity },
-            }));
-            socket.emit("coinsMove", { roomName, coins: coinStates });
-        }
-    }, [animationState.isAnimating, socket, roomName, coins]);
-    
-    // listen for coin movement from other player
-    useEffect(() => {
-        if (!socket || !roomName) return;
-
-        const handleCoinsMove = (data) => {
-            Events.handleCoinsMove(data, {
-                roomName,
-                isMyTurn,
-                coinsRef,
-                setCoins,
-                canvasRef,
-                playerRole,
-                createGameState,
-            });
-        };
-
-        socket.on("coinsMove", handleCoinsMove);
-        return () => socket.off("coinsMove", handleCoinsMove);
-    }, [socket, roomName, isMyTurn]);
-
-    // listen for pocketed coins from other player
-    useEffect(() => {
-        if (!socket || !roomName) return;
-
-        const handleCoinsPocketed = (data) => {
-            Events.handleCoinsPocketed(data, {
-                roomName,
-                coinsRef,
-                setCoins,
-                canvasRef,
-                playerRole,
-                createGameState,
-            });
-        };
-
-        socket.on("coinsPocketed", handleCoinsPocketed);
-        return () => socket.off("coinsPocketed", handleCoinsPocketed);
-    }, [socket, roomName]);
-
-    // listen for debt payment events
-    useEffect(() => {
-        if (!socket || !roomName) return;
-
-        const handleDebtPaid = (data) => {
-            Events.handleDebtPaid(data, {
-                roomName,
-                canvasRef,
-                coinsRef,
-                setCoins,
-                pocketedCoinsRef,
-                playerRole,
-                createGameState,
-            });
-        };
-
-        socket.on("debtPaid", handleDebtPaid);
-        return () => socket.off("debtPaid", handleDebtPaid);
-    }, [socket, roomName]);
-
-    // listen for queen reset events
-    useEffect(() => {
-        if (!socket || !roomName) return;
-
-        const handleQueenReset = (data) => {
-            Events.handleQueenReset(data, {
-                roomName,
-                canvasRef,
-                coinsRef,
-                setCoins,
-                pocketedCoinsRef,
-                playerRole,
-                createGameState,
-            });
-        };
-
-        socket.on("queenReset", handleQueenReset);
-        return () => socket.off("queenReset", handleQueenReset);
-    }, [socket, roomName]);
-    
-    // listen for cover turn state updates
-    useEffect(() => {
-        if (!socket || !roomName) return;
-
-        const handleCoverTurnUpdate = (data) => {
-            Events.handleCoverTurnUpdate(data, {
-                roomName,
-                manager,
-            });
-        };
-
-        socket.on("coverTurnUpdate", handleCoverTurnUpdate);
-        return () => socket.off("coverTurnUpdate", handleCoverTurnUpdate);
-    }, [socket, roomName, manager]);
-
-    // listen for queen pocketed state updates
-    useEffect(() => {
-        if (!socket || !roomName) return;
-
-        const handleQueenPocketedUpdate = (data) => {
-            Events.handleQueenPocketedUpdate(data, {
-                roomName,
-                manager,
-            });
-        };
-
-        socket.on("queenPocketedUpdate", handleQueenPocketedUpdate);
-        return () =>
-            socket.off("queenPocketedUpdate", handleQueenPocketedUpdate);
-    }, [socket, roomName, manager]);
-
-    // listen for queen covered state updates
-    useEffect(() => {
-        if (!socket || !roomName) return;
-
-        const handleQueenCoveredUpdate = (data) => {
-            Events.handleQueenCoveredUpdate(data, {
-                roomName,
-                manager,
-            });
-        };
-
-        socket.on("queenCoveredUpdate", handleQueenCoveredUpdate);
-        return () => socket.off("queenCoveredUpdate", handleQueenCoveredUpdate);
-    }, [socket, roomName, manager]);
-
-    // listen for game reset events
-    useEffect(() => {
-        if (!socket || !roomName) return;
-
-        const handleGameReset = (data) => {
-            Events.handleGameReset(data, {
-                roomName,
-                animationRef,
-                canvasRef,
-                strikerRef,
-                coinsRef,
-                setCoins,
-                initialCoinCountsRef,
-                pocketedCoinsRef,
-                pocketedThisTurnRef,
-                continuedTurnsRef,
-                debtRef,
-                manager,
-                playerRole,
-                createGameState,
-            });
-        };
-
-        socket.on("gameReset", handleGameReset);
-        return () => socket.off("gameReset", handleGameReset);
-    }, [socket, roomName, manager]);
-
-    // continuously check for striker-coin collisions
-    useEffect(() => {
-        if (!strikerRef.current) return;
-        const checkCollisions = () => {
-            const isCurrentlyColliding = Physics.checkStrikerCoinCollision(
-                strikerRef.current,
-                coinsRef.current,
-            );
-            if (isCurrentlyColliding !== isStrikerColliding) {
-                setIsStrikerColliding(isCurrentlyColliding);
-            }
-        };
-
-        // check collisions on every animation frame
-        const intervalId = setInterval(checkCollisions, 16); // ~60fps
-
-        return () => clearInterval(intervalId);
-    }, [isStrikerColliding, coins]); // re-run when coins change
 
     // separate useEffect for initial canvas drawing
     useEffect(() => {
@@ -885,13 +702,6 @@ function GameCanvas({isMyTurn = true, socket, playerRole, roomName, manager, onL
         handState.isFlickerActive,
         handState.flick,
     ]);
-      // cleanup pending actions on component unmount or room change
-    useEffect(() => {
-        return () => {
-            animationRef.current.cleanup();
-        };
-    }, [roomName]);
-    
     // handle room closed event - return to menu if any player leaves
     useEffect(() => {
         if (!socket || !onLeaveRoom) return;
@@ -905,6 +715,16 @@ function GameCanvas({isMyTurn = true, socket, playerRole, roomName, manager, onL
             socket.off("roomClosed", handleRoomClosed);
         };
     }, [socket, onLeaveRoom]);
+
+    // Cancel any in-flight pocket-anim rAF on unmount.
+    useEffect(() => {
+        return () => {
+            if (pocketAnimRafRef.current != null) {
+                cancelAnimationFrame(pocketAnimRafRef.current);
+                pocketAnimRafRef.current = null;
+            }
+        };
+    }, []);
 
     // Get the responsive scale factor
     const scale = useResponsiveScale();    return (
@@ -991,7 +811,7 @@ function GameCanvas({isMyTurn = true, socket, playerRole, roomName, manager, onL
                     onMouseMove={handleMouseMove}
                     onMouseUp={handleMouseUp}
                     onMouseLeave={(e) => handRef.current.handleMouseLeave(e, {
-                        isAnimating: animationState.isAnimating,
+                        isAnimating,
                         isMyTurn,
                         strikerRef,
                         isStrikerColliding,
@@ -1003,7 +823,7 @@ function GameCanvas({isMyTurn = true, socket, playerRole, roomName, manager, onL
                     height={900}
                     style={{
                         backgroundColor: "#fff",
-                        cursor: animationState.isAnimating
+                        cursor: isAnimating
                             ? "not-allowed"
                             : handState.isFlickerActive
                                 ? "crosshair"
@@ -1057,14 +877,14 @@ function GameCanvas({isMyTurn = true, socket, playerRole, roomName, manager, onL
                         max="100"
                         value={handState.sliderValue || 50}
                         onChange={handleSliderChange}
-                        disabled={!isMyTurn || animationState.isAnimating || strikerRef.current?.isStrikerMoving}
+                        disabled={!isMyTurn || isAnimating || strikerRef.current?.isStrikerMoving}
                         style={{
                             width: '100%',
                             height: '130px',
                             borderRadius: '0',
                             background: 'transparent',
                             outline: 'none',
-                            cursor: isMyTurn && !animationState.isAnimating && !strikerRef.current?.isStrikerMoving ? 'pointer' : 'not-allowed',
+                            cursor: isMyTurn && !isAnimating && !strikerRef.current?.isStrikerMoving ? 'pointer' : 'not-allowed',
                             WebkitAppearance: 'none',
                             appearance: 'none',
                             opacity: 0,

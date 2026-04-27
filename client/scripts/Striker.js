@@ -1,25 +1,49 @@
-import Pocket from "./Pocket.js";
-import Physics from "./Physics.js";
+// Striker: pure render-side data object. Server owns physics + pocket
+// detection. The client mirrors server snapshots and only tracks placement
+// (`isPlacing`) and a derived `isStrikerMoving` flag for cursor/UI gating.
+//
+// Pocket-drop tween (presentation-only, mirrors `Coin`): when the server
+// emits a `pocketEvent` with `kind: "striker"`, the client snapshots the
+// striker's pre-capture position via `startPocketAnim` and `draw()`
+// interpolates a shrink + ease-in slide into the pocket. While the tween is
+// running, incoming `physicsFrame` updates with `striker: null` are ignored
+// for position so the animation can complete.
 
 export default class Striker {
+    static POCKET_ANIM_MS = 250;
+
     constructor(x, y) {
         this.radius = 21;
-        this.strikerMass = 1;
         this.x = x;
         this.y = y;
         this.velocity = { x: 0, y: 0 };
-        this.acceleration = { x: 0, y: 0 };
         this.isPlacing = false;
         this.isStrikerMoving = false;
-        this.restitution = 0.6;
-        this.friction = 0.97;
-
-        // pocketing animation state
         this.beingPocketed = false;
-        this.pocketTarget = null;        this.pocketAnimationProgress = 0;
-        this.pocketAnimationSpeed = 0.04;  // Slowed down animation speed
-        this.originalRadius = 21;
-        this.startPocketPosition = { x: 0, y: 0 };
+        this.pocketTarget = null;
+        this.pocketStartX = 0;
+        this.pocketStartY = 0;
+        this.pocketStartTime = 0;
+    }
+
+    startPocketAnim(fromX, fromY, targetX, targetY, now = performance.now()) {
+        this.x = fromX;
+        this.y = fromY;
+        this.beingPocketed = true;
+        this.pocketTarget = { x: targetX, y: targetY };
+        this.pocketStartX = fromX;
+        this.pocketStartY = fromY;
+        this.pocketStartTime = now;
+    }
+
+    pocketProgress(now = performance.now()) {
+        if (!this.beingPocketed) return 0;
+        return Math.min(1, (now - this.pocketStartTime) / Striker.POCKET_ANIM_MS);
+    }
+
+    resetPocketAnim() {
+        this.beingPocketed = false;
+        this.pocketTarget = null;
     }
 
     draw(ctx, strokeStyle = "black", lineWidth = 1) {
@@ -33,72 +57,11 @@ export default class Striker {
     }
 
     isPointInside(x, y) {
-        const distance = Math.sqrt(
-            Math.pow(this.x - x, 2) + Math.pow(this.y - y, 2),
-        );
-        return distance <= this.radius;
+        return Math.hypot(this.x - x, this.y - y) <= this.radius;
     }
 
     updatePosition(x, y) {
         this.x = x;
         this.y = y;
-    }
-    handleBorderCollision(boardX, boardY, boardSize) {
-        return Physics.handleBorderCollision(this, boardX, boardY, boardSize);
-    }
-
-    isMoving(threshold = 0.2) {
-        // if being pocketed, consider it as moving until animation completes
-        if (this.beingPocketed) return true;
-        return (
-            Math.abs(this.velocity.x) > threshold ||
-            Math.abs(this.velocity.y) > threshold
-        );
-    }    update(
-        friction = this.friction,
-        stopThreshold = 0.2,
-        boardX,
-        boardY,
-        boardSize,
-        otherObjects = []
-    ) {
-        if (this.isPlacing) return;
-        
-        // Use continuous collision detection for fast-moving striker
-        if (boardX !== undefined && boardY !== undefined && boardSize !== undefined) {
-            Physics.updateWithCCD(this, otherObjects, boardX, boardY, boardSize);
-        } else {
-            // Fallback to simple update
-            this.x += this.velocity.x;
-            this.y += this.velocity.y;
-        }
-
-        this.velocity.x *= friction;
-        this.velocity.y *= friction;
-
-        if (
-            Math.abs(this.velocity.x) <= stopThreshold &&
-            Math.abs(this.velocity.y) <= stopThreshold
-        ) {
-            this.velocity.x = 0;
-            this.velocity.y = 0;
-            this.isStrikerMoving = false;
-        } else {
-            this.isStrikerMoving = true;
-        }
-    }
-    // start pocketing animation
-    startPocketing(pocketX, pocketY) {
-        Pocket.startPocketing(this, pocketX, pocketY);
-    }
-
-    // update pocketing animation
-    updatePocketAnimation() {
-        return Pocket.updatePocketAnimation(this);
-    }
-
-    // reset pocketing state (for when striker is reset to base)
-    resetPocketingState() {
-        Pocket.resetPocketingState(this);
     }
 }
