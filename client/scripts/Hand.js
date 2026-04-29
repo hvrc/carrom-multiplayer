@@ -1,4 +1,3 @@
-import Physics from "./Physics.js";
 import { Draw } from "./Draw.js";
 
 /**
@@ -13,6 +12,29 @@ export class Hand {
     // Flick constants - reduced power for finer linear scaling
     static FLICK_MAX_LENGTH = 100;
     static FLICK_POWER = 0.4;  // Reduced base power for finer control
+
+    /**
+     * Compute flick parameters from current this.flick state and emit a
+     * server-authoritative `flick` event. Returns true if a flick was sent.
+     * Does NOT mutate striker velocity \u2014 the server is the simulation source
+     * of truth and will broadcast physicsFrame updates back to all clients.
+     */
+    _emitFlick({ strikerRef, socket, roomName }) {
+        if (!socket || !roomName || !strikerRef?.current) return false;
+        const dx = this.flick.startX - this.flick.endX;
+        const dy = this.flick.startY - this.flick.endY;
+        const distance = Math.hypot(dx, dy);
+        if (distance <= 5) return false;
+        const force = Math.min(distance / this.flickMaxLength, 1);
+        const angle = Math.atan2(dy, dx);
+        socket.emit("flick", {
+            roomName,
+            strikerX: strikerRef.current.x,
+            angle,
+            force,
+        });
+        return true;
+    }
 
     constructor() {
         // State management
@@ -219,7 +241,7 @@ export class Hand {
     /**
      * Handle flick mouse up event
      */
-    handleFlickMouseUp(e, { isMyTurn, strikerRef, isStrikerColliding }) {
+    handleFlickMouseUp(e, { isMyTurn, strikerRef, isStrikerColliding, socket, roomName }) {
         if (
             !isMyTurn ||
             !strikerRef.current ||
@@ -230,59 +252,13 @@ export class Hand {
         }
 
         // prevent execution if striker is colliding with coins
-        if (isStrikerColliding) {
-            this._updateState({
-                flick: {
-                    active: false,
-                    startX: 0,
-                    startY: 0,
-                    endX: 0,
-                    endY: 0,
-                },
-            });
-            return;
-        }
-        
-        // calculate velocity (opposite direction of pull)
-        let dx = this.flick.startX - this.flick.endX;
-        let dy = this.flick.startY - this.flick.endY;
-        const dist = Math.hypot(dx, dy);
-        
-        // Calculate proportional power based on distance pulled
-        // Linear scaling with finest possible precision
-        // Every single pixel of movement creates proportional power increase
-        const distanceRatio = Math.min(dist / this.flickMaxLength, 1.0);
-        
-        // Pure linear scaling: power = ratio (1:1 relationship)
-        // This gives the finest possible control:
-        // - 1 pixel = 0.67% power (ultra-fine)
-        // - 10 pixels = 6.7% power (very fine)  
-        // - 25 pixels = 16.7% power (fine)
-        // - 50 pixels = 33.3% power (moderate)
-        // - 75 pixels = 50% power (medium)
-        // - 100 pixels = 66.7% power (strong)
-        // - 150 pixels = 100% power (maximum)
-        const powerRatio = distanceRatio;
-        const effectivePower = Hand.FLICK_POWER * powerRatio;
-
-        // Normalize direction vector
-        if (dist > 0) {
-            dx = (dx / dist) * dist; // Keep original magnitude for direction
-            dy = (dy / dist) * dist;
+        if (!isStrikerColliding) {
+            this._emitFlick({ strikerRef, socket, roomName });
         }
 
-        strikerRef.current.velocity.x = dx * effectivePower;
-        strikerRef.current.velocity.y = dy * effectivePower;
-        strikerRef.current.isStrikerMoving = true;
-        
         this._updateState({
             flick: { active: false, startX: 0, startY: 0, endX: 0, endY: 0, mode: null, initialClickX: 0, initialClickY: 0 },
         });
-
-        // Notify parent to start animation
-        if (this.onAnimationStart) {
-            this.onAnimationStart();
-        }
     }
     
     /**
@@ -297,6 +273,8 @@ export class Hand {
             canvasRef,
             playerRole,
             isStrikerColliding,
+            socket,
+            roomName,
         },
     ) {
 
@@ -363,6 +341,8 @@ export class Hand {
             canvasRef,
             playerRole,
             isStrikerColliding,
+            socket,
+            roomName,
         };
         this.isMouseDown = true;
         this._addGlobalListeners();
@@ -586,32 +566,8 @@ export class Hand {
 
             const distance = Math.sqrt(dx * dx + dy * dy);
             if (distance > 5) {
-                
-                // Minimum distance to register flick
-                const normalizedDistance = Math.min(distance / this.flickMaxLength, 1);
-                const power = normalizedDistance * Hand.FLICK_POWER;
-
-                // Instead of applying velocity directly, emit flick event
-                if (socket && roomName) {
-                    socket.emit("strikerFlicked", {
-                        roomName,
-                        playerRole,
-                        flick: {
-                            startX: strikerRef.current.x,
-                            startY: strikerRef.current.y,
-                            direction: { x: dx, y: dy },
-                            power,
-                        },
-                    });
-                }
-
-                // Locally apply velocity for the active player
-                strikerRef.current.velocity.x = (dx / distance) * power * 100;
-                strikerRef.current.velocity.y = (dy / distance) * power * 100;
-                strikerRef.current.isStrikerMoving = true;
-                if (this.onAnimationStart) {
-                    this.onAnimationStart();
-                }
+                // Server is the simulation source of truth: emit angle/force only.
+                this._emitFlick({ strikerRef, socket, roomName });
             }
 
             // Reset flick state
@@ -676,28 +632,16 @@ export class Hand {
             dx = this.flick.startX - this.flick.endX;  // Reversed direction (opposite of flick line)
             dy = this.flick.startY - this.flick.endY;  // Reversed direction (opposite of flick line)
         }
-        
+
         const distance = Math.sqrt(dx * dx + dy * dy);
 
         if (distance > 5) {
-            
-            // Minimum distance to register flick
-            // Calculate power (normalize distance to 0-1 range)
-            const normalizedDistance = Math.min(distance / this.flickMaxLength, 1);
-            const power = normalizedDistance * Hand.FLICK_POWER;
-
-            // Apply velocity in the calculated direction
-            const velocityX = (dx / distance) * power * 100;
-            const velocityY = (dy / distance) * power * 100;
-
-            strikerRef.current.velocity.x = velocityX;
-            strikerRef.current.velocity.y = velocityY;
-            strikerRef.current.isStrikerMoving = true;
-
-            // Start animation
-            if (this.onAnimationStart) {
-                this.onAnimationStart();
-            }
+            // Server is the simulation source of truth.
+            this._emitFlick({
+                strikerRef: ctx.strikerRef,
+                socket: ctx.socket,
+                roomName: ctx.roomName,
+            });
         }
         
         // Reset flick state

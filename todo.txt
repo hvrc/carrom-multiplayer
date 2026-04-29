@@ -1,69 +1,69 @@
-create room
-join room
-usernames
-turn changing
-two windows
-game state, striker positioning, aiming, striker moving
-coins moving, striker and coins stopping
-board size, border location
-pocket radius and locations
-coin mass, radius, color, positions
-striker mass, radius, position
-slingshot mechanism for striker
-striker position switching
-collisions between striker, coins, border
-pocket checking for coins
-coin deletion
-score incrementing or turn changing on coin pocket
-striker position reset on turn continuation
-pocket checking for striker
-debt incrementing, coin reseting to center, score decrementing, debt decrementing, turn changing on striker pocket
-queen pocketing, cover turn
-queen resetting to the center
-game reset after max points
-clean console logs
-prioritize resetting queen to center if striker pocketed after
-realistic dimensions
-slingshot double click bug
-animation for pocketing coins, striker
-no overlapping
-starting grid
-longer heartbeats in server?
+x create room
+x join room
+x usernames
+x turn changing
+x two windows
+x game state, striker positioning, aiming, striker moving
+x coins moving, striker and coins stopping
+x board size, border location
+x pocket radius and locations
+x coin mass, radius, color, positions
+x striker mass, radius, position
+x slingshot mechanism for striker
+x striker position switching
+x collisions between striker, coins, border
+x pocket checking for coins
+x coin deletion
+x score incrementing or turn changing on coin pocket
+x striker position reset on turn continuation
+x pocket checking for striker
+x debt incrementing, coin reseting to center, score decrementing, debt decrementing, turn changing on striker pocket
+x queen pocketing, cover turn
+x queen resetting to the center
+x game reset after max points
+x clean console logs
+? prioritize resetting queen to center if striker pocketed after
+? realistic dimensions
+? slingshot double click bug
+  animation for pocketing coins, striker
+? no overlapping
+x starting grid
+? longer heartbeats in server?
 
-map out client server communication and game functions
-calculate physics on clients, send input via server
-handling multiple coin pocket or coin and striker pocket, and turn continuation or change
+x map out client server communication and game functions
+? calculate physics on clients, send input via server  (went server-authoritative instead — input via client, physics on server)
+x handling multiple coin pocket or coin and striker pocket, and turn continuation or change
 
-blue button text on mobile
-no slider on mobile
+? blue button text on mobile
+? no slider on mobile
 
-player should be able to leave room, and same/new player should be able to join
-if both players leave, room should be deleted
-player should be able to refresh while in room
-fix slow speed on joiner window
-refresh and retry bug
-better physics
-refactor
-more ui
-assign more points for queen
-room scoreboard
-board, coin designs
-mobile controls
-sound, synth idea
-deploy
-multiple games at the same time
-talcom powder
-merge with carrom 1.0
-new game modes
-cutting the moon, circles
-slider to rotate starting grid
+? player should be able to leave room, and same/new player should be able to join
+x if both players leave, room should be deleted
+? player should be able to refresh while in room
+x fix slow speed on joiner window
+? refresh and retry bug
+  better physics
+  refactor
+  more ui
+x assign more points for queen
+? room scoreboard
+? board, coin designs
+  mobile controls
+  sound, synth idea
+? deploy
+x multiple games at the same time
+  talcom powder
+? merge with carrom 1.0
+  new game modes
+? cutting the moon, circles
+? slider to rotate starting grid
 
-display pocketed coins
-handle positioning of muliple coin reset to the center
-striker position reset animation
-coins stacked on frame
-coins animated moving to frame
-allow covering queen in the same turn
-4 players
+  display pocketed coins
+x handle positioning of muliple coin reset to the center
+? striker position reset animation
+? coins stacked on frame
+? coins animated moving to frame
+x allow covering queen in the same turn
+  4 players
 
-phaser, redis, postgresql, websockets, node
+? phaser, redis, postgresql, websockets, node

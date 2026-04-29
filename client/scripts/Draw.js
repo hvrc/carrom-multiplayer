@@ -62,8 +62,11 @@ export class Draw {
         // Draw base lines
         Draw._drawBaseLines(ctx, boardX, boardY);
 
-        // Draw all coins
+        // Draw all coins (active + currently animating into pocket)
         gameState.coinsRef.current.forEach((coin) => coin.draw(ctx));
+        if (gameState.pocketingCoinsRef) {
+            gameState.pocketingCoinsRef.current.forEach((coin) => coin.draw(ctx));
+        }
 
         // Draw striker
         Draw._drawStriker(ctx, gameState, overrideCollisionState);
@@ -241,6 +244,21 @@ export class Draw {
      */
     static _drawStriker(ctx, gameState, overrideCollisionState) {
         if (!gameState.strikerRef.current) return;
+        const striker = gameState.strikerRef.current;
+
+        // Pocket-drop tween: ease-in slide + shrink. Skip rendering once
+        // progress hits 1; the parent animation loop will clear the flag.
+        let drawX = striker.x;
+        let drawY = striker.y;
+        let drawRadius = striker.radius;
+        if (striker.beingPocketed && striker.pocketTarget) {
+            const t = striker.pocketProgress();
+            if (t >= 1) return;
+            const e = t * t;
+            drawX = striker.pocketStartX + (striker.pocketTarget.x - striker.pocketStartX) * e;
+            drawY = striker.pocketStartY + (striker.pocketTarget.y - striker.pocketStartY) * e;
+            drawRadius = striker.radius * (1 - t);
+        }
 
         // Use override collision state if provided, otherwise use React state
         const currentCollisionState =
@@ -259,13 +277,7 @@ export class Draw {
 
         // Draw striker with consistent border style
         ctx.beginPath();
-        ctx.arc(
-            gameState.strikerRef.current.x,
-            gameState.strikerRef.current.y,
-            gameState.strikerRef.current.radius,
-            0,
-            Math.PI * 2,
-        );
+        ctx.arc(drawX, drawY, drawRadius, 0, Math.PI * 2);
         ctx.strokeStyle = "black";
         ctx.lineWidth = 1;
         ctx.stroke();

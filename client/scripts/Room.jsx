@@ -222,7 +222,8 @@ export default function Room() {
         // listen for room closed event from server,
         // clear local storage and navigate to home page
 
-        socket.on("roomClosed", () => {
+        socket.on("roomClosed", (msg) => {
+            console.warn("[net] roomClosed:", msg);
             localStorage.clear();
             navigate("/");
         });
@@ -231,6 +232,7 @@ export default function Room() {
         // clear local storage and navigate to home page
 
         socket.on("error", (msg) => {
+            console.error("[net] server error — leaving room:", msg);
             localStorage.clear();
             navigate("/");
         });
